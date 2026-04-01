@@ -77,7 +77,7 @@ function AddProjectModal({ onClose }) {
   )
 }
 
-export default function Sidebar() {
+export default function Sidebar({ width = 210 }) {
   const { projects, currentPage, selectedProjectId, setPage } = useStore(s => ({
     projects:          s.projects,
     currentPage:       s.currentPage,
@@ -95,7 +95,7 @@ export default function Sidebar() {
     <>
       <aside
         className="flex flex-col h-full flex-shrink-0"
-        style={{ width: 210, background: '#0e0e0e', borderRight: '1px solid #1e1e1e' }}
+        style={{ width, background: '#0e0e0e' }}
       >
         {/* Logo */}
         <div className="px-5 py-5 flex items-center gap-2" style={{ borderBottom: '1px solid #1e1e1e' }}>

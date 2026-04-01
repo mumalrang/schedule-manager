@@ -1,7 +1,7 @@
 import React from 'react'
 import useStore from '../../store/useStore'
 
-export default function RightPanel({ onRequestAddTask }) {
+export default function RightPanel({ width = 260, onRequestAddTask }) {
   const { tasks, projects, selectedDate, toggleTask } = useStore(s => ({
     tasks:        s.tasks,
     projects:     s.projects,
@@ -9,8 +9,10 @@ export default function RightPanel({ onRequestAddTask }) {
     toggleTask:   s.toggleTask,
   }))
 
-  // Tasks for selected date, grouped by project
-  const dayTasks = tasks.filter(t => t.date === selectedDate)
+  // Tasks for selected date, grouped by project (date range 지원)
+  const dayTasks = tasks.filter(t =>
+    t.endDate ? (t.date <= selectedDate && selectedDate <= t.endDate) : t.date === selectedDate
+  )
 
   const grouped = projects
     .map(proj => ({
@@ -29,7 +31,7 @@ export default function RightPanel({ onRequestAddTask }) {
   return (
     <div
       className="flex flex-col h-full flex-shrink-0"
-      style={{ width: 260 }}
+      style={{ width, flexShrink: 0 }}
     >
       {/* Header */}
       <div

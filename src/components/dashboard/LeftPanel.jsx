@@ -2,13 +2,11 @@ import React from 'react'
 import MiniCalendar from './MiniCalendar'
 import useStore from '../../store/useStore'
 
-export default function LeftPanel() {
-  const { tasks, projects, fixedBlocks, selectedDate, deleteFixedBlock } = useStore(s => ({
-    tasks:           s.tasks,
-    projects:        s.projects,
-    fixedBlocks:     s.fixedBlocks,
-    selectedDate:    s.selectedDate,
-    deleteFixedBlock: s.deleteFixedBlock,
+export default function LeftPanel({ width = 260 }) {
+  const { tasks, projects, selectedDate } = useStore(s => ({
+    tasks:        s.tasks,
+    projects:     s.projects,
+    selectedDate: s.selectedDate,
   }))
 
   // Progress per project for selected date
@@ -19,12 +17,10 @@ export default function LeftPanel() {
     return { proj, total, done }
   }).filter(p => p.total > 0)
 
-  const DAY_LABELS = ['월','화','수','목','금','토','일']
-
   return (
     <div
       className="flex flex-col gap-4 h-full overflow-y-auto py-4 px-3"
-      style={{ width: 260, flexShrink: 0 }}
+      style={{ width, flexShrink: 0 }}
     >
       {/* Mini Calendar */}
       <section
@@ -66,49 +62,6 @@ export default function LeftPanel() {
         </section>
       )}
 
-      {/* Fixed blocks list */}
-      <section
-        className="rounded-lg p-3"
-        style={{ background: '#131313', border: '1px solid #1e1e1e' }}
-      >
-        <p className="text-xs font-medium mb-3" style={{ color: '#aaa' }}>고정 시간 블록</p>
-        {fixedBlocks.length === 0 ? (
-          <p className="text-xs" style={{ color: '#444' }}>등록된 블록이 없습니다.</p>
-        ) : (
-          <div className="flex flex-col gap-2">
-            {fixedBlocks.map(fb => (
-              <div
-                key={fb.id}
-                className="flex items-start justify-between gap-2 group"
-              >
-                <div className="flex items-start gap-2 min-w-0">
-                  <span
-                    className="w-2 h-2 rounded-sm mt-0.5 flex-shrink-0"
-                    style={{ background: fb.color }}
-                  />
-                  <div className="min-w-0">
-                    <p className="text-xs font-medium truncate" style={{ color: '#ccc' }}>{fb.name}</p>
-                    <p className="text-xs mt-0.5" style={{ color: '#555', fontSize: 10 }}>
-                      {fb.startTime} – {fb.endTime}
-                    </p>
-                    <p className="text-xs mt-0.5" style={{ color: '#444', fontSize: 10 }}>
-                      {fb.days.map(d => DAY_LABELS[d]).join(' ')}
-                    </p>
-                  </div>
-                </div>
-                <button
-                  onClick={() => deleteFixedBlock(fb.id)}
-                  className="opacity-0 group-hover:opacity-100 text-xs flex-shrink-0 transition-opacity"
-                  style={{ color: '#555' }}
-                  title="삭제"
-                >
-                  ×
-                </button>
-              </div>
-            ))}
-          </div>
-        )}
-      </section>
     </div>
   )
 }

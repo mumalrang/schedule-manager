@@ -1,7 +1,7 @@
 import React, { useState } from 'react'
 import useStore from '../../store/useStore'
 
-export default function AddTaskModal({ onClose, defaultDate = '', defaultStart = '', defaultEnd = '', defaultProjId = '' }) {
+export default function AddTaskModal({ onClose, defaultDate = '', defaultStart = '', defaultEnd = '', defaultProjId = '', defaultMilestoneId = null }) {
   const { projects, addTask } = useStore(s => ({
     projects: s.projects,
     addTask:  s.addTask,
@@ -17,11 +17,12 @@ export default function AddTaskModal({ onClose, defaultDate = '', defaultStart =
     e.preventDefault()
     if (!text.trim() || !projId || !date) return
     addTask({
-      text:      text.trim(),
+      text:        text.trim(),
       projId,
+      milestoneId: defaultMilestoneId || null,
       date,
-      startTime: startTime || null,
-      endTime:   endTime   || null,
+      startTime:   startTime || null,
+      endTime:     endTime   || null,
     })
     onClose()
   }
