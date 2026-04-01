@@ -6,7 +6,7 @@
       "runtimeExecutable": "/bin/bash",
       "runtimeArgs": [
         "-c",
-        "PATH=/tmp/node-v20.19.0-darwin-arm64/bin:$PATH /tmp/node-v20.19.0-darwin-arm64/bin/node /Users/macair/Desktop/스케줄관리/node_modules/.bin/vite --host 0.0.0.0 --port 5173"
+        "/Users/macair/.local/node/bin/node /Users/macair/Desktop/스케줄관리/node_modules/.bin/vite --host 0.0.0.0 --port 5173"
       ],
       "port": 5173
     }
