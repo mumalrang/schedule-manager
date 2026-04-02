@@ -18,10 +18,10 @@ export default function EditTaskModal({ task, onClose, hideTime = false }) {
 
   const handleSubmit = (e) => {
     e.preventDefault()
-    if (!text.trim() || !projId || !date) return
+    if (!text.trim()) return
     updateTask(task.id, {
       text:      text.trim(),
-      projId,
+      projId:    projId || null,
       date,
       endDate:   isRange && endDate > date ? endDate : null,
       startTime: startTime || null,
@@ -68,11 +68,12 @@ export default function EditTaskModal({ task, onClose, hideTime = false }) {
             <label className="block text-xs mb-1" style={{ color: '#aaa' }}>프로젝트</label>
             <div className="relative">
               <select
-                value={projId}
-                onChange={e => setProjId(e.target.value)}
+                value={projId ?? ''}
+                onChange={e => setProjId(e.target.value || null)}
                 className="w-full px-3 py-2 rounded text-sm appearance-none"
-                style={{ background: '#131313', border: '1px solid #2e2e2e', color: '#efefef' }}
+                style={{ background: '#131313', border: '1px solid #2e2e2e', color: projId ? '#efefef' : '#555' }}
               >
+                <option value="">미지정</option>
                 {projects.map(p => (
                   <option key={p.id} value={p.id}>{p.name}</option>
                 ))}

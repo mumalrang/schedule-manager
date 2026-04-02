@@ -1,12 +1,12 @@
 import React, { useState, useRef } from 'react'
 import useStore from '../../store/useStore'
 import EditTaskModal from '../modals/EditTaskModal'
-import { parseDump, formatDuration } from '../../utils/parseDump'
+import { parseDump } from '../../utils/parseDump'
 
 export default function DumpPanel({ width = 260 }) {
   const { tasks, projects, toggleTask, deleteTask, addTask } = useStore(s => ({
     tasks:      s.tasks,
-    projects:   s.projects,
+    projects:   s.projects,   // parseDump에 사용
     toggleTask: s.toggleTask,
     deleteTask: s.deleteTask,
     addTask:    s.addTask,
@@ -16,6 +16,7 @@ export default function DumpPanel({ width = 260 }) {
   const [dumpInput,  setDumpInput]  = useState('')
   const inputRef      = useRef(null)
   const composingRef  = useRef(false)
+  const draggingRef   = useRef(false)
 
   const handleSubmit = (e) => {
     e?.preventDefault()
@@ -34,8 +35,8 @@ export default function DumpPanel({ width = 260 }) {
     setDumpInput('')
   }
 
-  // 날짜 없거나 프로젝트 없는 항목 = 덤프
-  const dumpTasks = tasks.filter(t => !t.date || !t.projId)
+  // 날짜 없거나 프로젝트 없는 항목 = 덤프 (마일스톤 소속 태스크 제외)
+  const dumpTasks = tasks.filter(t => (!t.date || !t.projId) && !t.milestoneId)
 
   return (
     <div className="flex flex-col h-full flex-shrink-0" style={{ width, flexShrink: 0 }}>
@@ -84,21 +85,27 @@ export default function DumpPanel({ width = 260 }) {
         ) : (
           <div className="flex flex-col gap-1.5">
             {dumpTasks.map(task => {
-              const proj = projects.find(p => p.id === task.projId)
               return (
                 <div
                   key={task.id}
-                  className="group rounded px-3 py-2.5 cursor-pointer"
+                  draggable
+                  onDragStart={e => {
+                    draggingRef.current = true
+                    e.dataTransfer.effectAllowed = 'move'
+                    e.dataTransfer.setData('dumpTaskId', task.id)
+                  }}
+                  onDragEnd={() => { draggingRef.current = false }}
+                  className="group rounded px-3 py-2.5 cursor-grab active:cursor-grabbing"
                   style={{ background: '#131313', border: '1px solid #1e1e1e' }}
-                  onClick={() => setEditTask(task)}
+                  onClick={() => { if (!draggingRef.current) setEditTask(task) }}
                   onMouseEnter={e => e.currentTarget.style.borderColor = '#2e2e2e'}
                   onMouseLeave={e => e.currentTarget.style.borderColor = '#1e1e1e'}
                 >
-                  <div className="flex items-start gap-2">
+                  <div className="flex items-center gap-2">
                     {/* 체크박스 */}
                     <button
                       onClick={e => { e.stopPropagation(); toggleTask(task.id) }}
-                      className="w-4 h-4 rounded flex-shrink-0 mt-0.5 flex items-center justify-center"
+                      className="w-4 h-4 rounded flex-shrink-0 flex items-center justify-center"
                       style={{
                         border:     `1.5px solid ${task.done ? '#555' : '#333'}`,
                         background: task.done ? '#333' : 'transparent',
@@ -112,61 +119,21 @@ export default function DumpPanel({ width = 260 }) {
                       )}
                     </button>
 
-                    <div className="flex-1 min-w-0">
-                      <p
-                        className="text-xs leading-snug"
-                        style={{
-                          color:          task.done ? '#444' : '#ccc',
-                          textDecoration: task.done ? 'line-through' : 'none',
-                        }}
-                      >
-                        {task.text}
-                      </p>
-
-                      {/* 메타 칩 */}
-                      <div className="flex flex-wrap gap-1 mt-1.5">
-                        {proj ? (
-                          <span className="px-1.5 py-0.5 rounded text-xs"
-                            style={{ background: proj.color + '18', color: proj.color, fontSize: 10 }}>
-                            {proj.name}
-                          </span>
-                        ) : (
-                          <span className="px-1.5 py-0.5 rounded text-xs"
-                            style={{ background: '#1e1e1e', color: '#444', fontSize: 10 }}>
-                            미지정
-                          </span>
-                        )}
-                        {task.date ? (
-                          <span className="px-1.5 py-0.5 rounded text-xs"
-                            style={{ background: '#0f2010', color: '#4ade80', fontSize: 10 }}>
-                            {task.date}
-                          </span>
-                        ) : (
-                          <span className="px-1.5 py-0.5 rounded text-xs"
-                            style={{ background: '#1e1e1e', color: '#444', fontSize: 10 }}>
-                            날짜 없음
-                          </span>
-                        )}
-                        {task.duration && (
-                          <span className="px-1.5 py-0.5 rounded text-xs"
-                            style={{ background: '#1a1a2a', color: '#a78bfa', fontSize: 10 }}>
-                            ~{formatDuration(task.duration)}
-                          </span>
-                        )}
-                        {task.urgent && (
-                          <span className="px-1.5 py-0.5 rounded text-xs"
-                            style={{ background: '#2a1010', color: '#f87171', fontSize: 10 }}>
-                            긴급
-                          </span>
-                        )}
-                      </div>
-                    </div>
+                    <p
+                      className="flex-1 text-xs leading-snug truncate"
+                      style={{
+                        color:          task.done ? '#444' : '#ccc',
+                        textDecoration: task.done ? 'line-through' : 'none',
+                      }}
+                    >
+                      {task.text}
+                    </p>
 
                     {/* 삭제 버튼 */}
                     <button
                       onClick={e => { e.stopPropagation(); deleteTask(task.id) }}
-                      className="opacity-0 group-hover:opacity-100 flex-shrink-0 self-start text-xs transition-opacity"
-                      style={{ color: '#444', marginTop: 2 }}
+                      className="opacity-0 group-hover:opacity-100 flex-shrink-0 text-xs transition-opacity"
+                      style={{ color: '#444' }}
                     >
                       ×
                     </button>

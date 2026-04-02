@@ -68,6 +68,8 @@ function buildInitialState(saved) {
       fixedBlocks: saved.fixedBlocks ?? DEFAULT_FIXED_BLOCKS,
       selectedDate: saved.selectedDate ?? today,
       activeHours:  saved.activeHours  ?? { start: '06:00', end: '23:00' },
+      viewPreset:      saved.viewPreset      ?? 1,
+      viewRangeStart:  saved.viewRangeStart  ?? today,
     }
   }
   return {
@@ -77,6 +79,8 @@ function buildInitialState(saved) {
     fixedBlocks: DEFAULT_FIXED_BLOCKS,
     selectedDate: today,
     activeHours: { start: '06:00', end: '23:00' },
+    viewPreset:     1,
+    viewRangeStart: today,
   }
 }
 
@@ -162,6 +166,14 @@ const useStore = create((set, get) => {
     // ── active hours ───────────────────────────────────────
     setActiveHours: (activeHours) =>
       set(persist({ activeHours })),
+
+    // ── view range ─────────────────────────────────────────
+    setViewRange: (viewPreset, viewRangeStart) =>
+      set(persist({ viewPreset, viewRangeStart })),
+
+    // single set call — 두 번 렌더 방지
+    setViewRangeAndDate: (viewPreset, viewRangeStart, selectedDate) =>
+      set(persist({ viewPreset, viewRangeStart, selectedDate })),
   }
 })
 

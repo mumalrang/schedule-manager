@@ -5,11 +5,12 @@ const DAY_NAMES = ['일', '월', '화', '수', '목', '금', '토']
 const MONTH_NAMES = ['1월','2월','3월','4월','5월','6월','7월','8월','9월','10월','11월','12월']
 
 export default function MiniCalendar() {
-  const { tasks, projects, selectedDate, setSelectedDate } = useStore(s => ({
+  const { tasks, projects, selectedDate, setSelectedDate, setViewRange } = useStore(s => ({
     tasks:        s.tasks,
     projects:     s.projects,
     selectedDate: s.selectedDate,
     setSelectedDate: s.setSelectedDate,
+    setViewRange: s.setViewRange,
   }))
 
   const selDate  = new Date(selectedDate + 'T00:00:00')
@@ -52,6 +53,7 @@ export default function MiniCalendar() {
     const mm = String(viewMonth + 1).padStart(2, '0')
     const dd = String(day).padStart(2, '0')
     setSelectedDate(`${viewYear}-${mm}-${dd}`)
+    setViewRange(1, `${viewYear}-${mm}-${dd}`)
   }
 
   return (
