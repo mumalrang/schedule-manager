@@ -33,7 +33,6 @@ export default function TimeGrid({ date, projectFilter = null, onRequestAddTask,
   const projects    = useStore(s => s.projects)
   const fixedBlocks = useStore(s => s.fixedBlocks)
   const activeHours = useStore(s => s.activeHours)
-  const toggleTask  = useStore(s => s.toggleTask)
   const updateTask  = useStore(s => s.updateTask)
 
   // ── base active range (설정된 활동 시간) ─────────────────
@@ -88,12 +87,24 @@ export default function TimeGrid({ date, projectFilter = null, onRequestAddTask,
   const getTop     = () => gridRef.current?.getBoundingClientRect().top ?? 0
 
   // ── state: create-drag (empty grid area) ─────────────────
-  const [createDrag, setCreateDrag] = useState(null) // { startMin, endMin }
+  const createDragRef = useRef(null)
+  const [createDrag, _setCreateDrag] = useState(null) // { startMin, endMin }
+  const setCreateDrag = useCallback((val) => {
+    const next = typeof val === 'function' ? val(createDragRef.current) : val
+    createDragRef.current = next
+    _setCreateDrag(next)
+  }, [])
   const isCreating  = useRef(false)
 
   // ── state: move-drag (existing task) ─────────────────────
   // { id, duration, offsetMin, startMin, endMin, originY, hasMoved }
-  const [moveDrag, setMoveDrag] = useState(null)
+  const moveDragRef = useRef(null)
+  const [moveDrag, _setMoveDrag] = useState(null)
+  const setMoveDrag = useCallback((val) => {
+    const next = typeof val === 'function' ? val(moveDragRef.current) : val
+    moveDragRef.current = next
+    _setMoveDrag(next)
+  }, [])
   const isMoving   = useRef(false)
 
   // ── state: dump drop indicator ────────────────────────────
@@ -135,46 +146,49 @@ export default function TimeGrid({ date, projectFilter = null, onRequestAddTask,
 
   // ── mousemove ─────────────────────────────────────────────
   const handleMouseMove = useCallback((e) => {
-    if (isMoving.current && moveDrag) {
-      const moved = Math.abs(e.clientY - moveDrag.originY) > DRAG_THRESHOLD
+    if (isMoving.current && moveDragRef.current) {
+      const moved = Math.abs(e.clientY - moveDragRef.current.originY) > DRAG_THRESHOLD
       const mouseMin  = yToMin(e.clientY - getTop())
       const newStart  = Math.max(effectiveStart,
-        Math.min(effectiveEnd - moveDrag.duration, snapMinutes(mouseMin - moveDrag.offsetMin)))
-      const newEnd    = newStart + moveDrag.duration
+        Math.min(effectiveEnd - moveDragRef.current.duration, snapMinutes(mouseMin - moveDragRef.current.offsetMin)))
+      const newEnd    = newStart + moveDragRef.current.duration
       setMoveDrag(d => d ? { ...d, startMin: newStart, endMin: newEnd, hasMoved: moved || d.hasMoved } : null)
       return
     }
-    if (isCreating.current && createDrag) {
+    if (isCreating.current && createDragRef.current) {
       const min = yToMin(e.clientY - getTop())
       setCreateDrag(d => d ? { ...d, endMin: Math.max(d.startMin + SNAP, min) } : null)
     }
-  }, [moveDrag, createDrag, yToMin, effectiveStart, effectiveEnd])
+  }, [yToMin, effectiveStart, effectiveEnd])
 
   // ── mouseup ───────────────────────────────────────────────
   const handleMouseUp = useCallback((e) => {
     // ── finish move ──
-    if (isMoving.current && moveDrag) {
+    if (isMoving.current) {
       isMoving.current = false
-      const { id, hasMoved, startMin, endMin } = moveDrag
+      const drag = moveDragRef.current
       setMoveDrag(null)
-      if (hasMoved) {
-        updateTask(id, {
-          startTime: minutesToTime(startMin),
-          endTime:   minutesToTime(endMin),
-        })
-      } else {
-        // short press without move → open edit modal
-        const clicked = tasks.find(t => t.id === id)
-        if (clicked) setEditTask(clicked)
+      if (drag) {
+        if (drag.hasMoved) {
+          updateTask(drag.id, {
+            startTime: minutesToTime(drag.startMin),
+            endTime:   minutesToTime(drag.endMin),
+          })
+        } else {
+          const clicked = tasks.find(t => t.id === drag.id)
+          if (clicked) setEditTask(clicked)
+        }
       }
       return
     }
     // ── finish create ──
-    if (isCreating.current && createDrag) {
+    if (isCreating.current) {
       isCreating.current = false
-      const startMin = Math.min(createDrag.startMin, createDrag.endMin)
-      const endMin   = Math.max(createDrag.startMin, createDrag.endMin)
+      const drag = createDragRef.current
       setCreateDrag(null)
+      if (!drag) return
+      const startMin = Math.min(drag.startMin, drag.endMin)
+      const endMin   = Math.max(drag.startMin, drag.endMin)
       if (endMin - startMin < SNAP) return
       onRequestAddTask?.({
         defaultDate:  date,
@@ -182,7 +196,7 @@ export default function TimeGrid({ date, projectFilter = null, onRequestAddTask,
         defaultEnd:   minutesToTime(endMin),
       })
     }
-  }, [moveDrag, createDrag, date, onRequestAddTask, updateTask, toggleTask])
+  }, [date, onRequestAddTask, updateTask, tasks])
 
   useEffect(() => {
     window.addEventListener('mousemove', handleMouseMove)
@@ -195,7 +209,8 @@ export default function TimeGrid({ date, projectFilter = null, onRequestAddTask,
 
   // ── dump drag-and-drop ────────────────────────────────────
   const handleDragOver = useCallback((e) => {
-    if (!e.dataTransfer.types.includes('dumptaskid')) return
+    const t = e.dataTransfer.types
+    if (!t.includes('dumptaskid') && !t.includes('scheduletaskid')) return
     e.preventDefault()
     e.dataTransfer.dropEffect = 'move'
     const min = yToMin(e.clientY - getTop())
@@ -209,13 +224,15 @@ export default function TimeGrid({ date, projectFilter = null, onRequestAddTask,
   const handleDrop = useCallback((e) => {
     e.preventDefault()
     setDropIndicator(null)
-    const taskId = e.dataTransfer.getData('dumpTaskId')
+    const taskId = e.dataTransfer.getData('dumpTaskId') || e.dataTransfer.getData('scheduletaskid')
     if (!taskId) return
     const task = tasks.find(t => t.id === taskId)
     if (!task) return
     const startMin = yToMin(e.clientY - getTop())
-    const duration = task.duration ?? 60
-    const endMin   = Math.min(startMin + duration, effectiveEnd)
+    const duration = task.startTime && task.endTime
+      ? timeToMinutes(task.endTime) - timeToMinutes(task.startTime)
+      : task.duration ?? 60
+    const endMin = Math.min(startMin + duration, effectiveEnd)
     updateTask(taskId, {
       date,
       startTime: minutesToTime(startMin),
@@ -333,7 +350,10 @@ export default function TimeGrid({ date, projectFilter = null, onRequestAddTask,
           >
             <div className="px-2 pt-1 pointer-events-none">
               <p className="text-xs font-medium leading-tight truncate"
-                style={{ color: task.done ? '#666' : color }}>
+                style={{
+                  color: task.done ? '#666' : color,
+                  textDecoration: task.done ? 'line-through' : 'none',
+                }}>
                 {task.text}
               </p>
               <p className="text-xs mt-0.5" style={{ color: '#555', fontSize: 10 }}>
@@ -342,22 +362,45 @@ export default function TimeGrid({ date, projectFilter = null, onRequestAddTask,
                   : `${task.startTime} – ${task.endTime}`}
               </p>
             </div>
+            {/* 날짜 이동 드래그 핸들 — 호버 시 노출 */}
+            <div
+              draggable
+              className="absolute opacity-0 group-hover/task:opacity-100 transition-opacity flex items-center justify-center"
+              style={{
+                top: 4, right: 22,
+                width: 14, height: 14,
+                cursor: 'grab',
+                pointerEvents: 'auto',
+              }}
+              title="다른 날짜로 이동"
+              onMouseDown={e => e.stopPropagation()}
+              onDragStart={(e) => {
+                e.dataTransfer.effectAllowed = 'move'
+                e.dataTransfer.setData('scheduletaskid', task.id)
+              }}
+            >
+              <svg width="8" height="10" viewBox="0 0 8 12" fill="#888">
+                <circle cx="2" cy="2" r="1.3"/><circle cx="6" cy="2" r="1.3"/>
+                <circle cx="2" cy="6" r="1.3"/><circle cx="6" cy="6" r="1.3"/>
+                <circle cx="2" cy="10" r="1.3"/><circle cx="6" cy="10" r="1.3"/>
+              </svg>
+            </div>
             {/* 일정 제외 버튼 — 호버 시 노출 */}
             <button
               className="absolute opacity-0 group-hover/task:opacity-100 transition-opacity"
               style={{
                 top: 4, right: 4,
-                width: 16, height: 16,
+                width: 14, height: 14,
                 borderRadius: 4,
                 background: 'rgba(0,0,0,0.55)',
                 color: '#aaa',
                 fontSize: 12,
-                lineHeight: '16px',
+                lineHeight: '14px',
                 textAlign: 'center',
                 cursor: 'pointer',
                 pointerEvents: 'auto',
               }}
-              title="일정에서 제외 (덤프로 이동)"
+              title="덤프로 이동"
               onMouseDown={e => e.stopPropagation()}
               onClick={e => {
                 e.stopPropagation()

@@ -1,4 +1,4 @@
-import React from 'react'
+import React, { useState } from 'react'
 import useStore from '../../../store/useStore'
 
 const DAY_LABELS = ['월','화','수','목','금','토','일']
@@ -10,25 +10,55 @@ function getDayLabel(dateStr) {
 }
 
 export default function CardView({ dates, selectedDate, onDayClick }) {
-  const tasks    = useStore(s => s.tasks)
-  const projects = useStore(s => s.projects)
+  const tasks      = useStore(s => s.tasks)
+  const projects   = useStore(s => s.projects)
+  const updateTask = useStore(s => s.updateTask)
 
   const todayStr = new Date().toISOString().split('T')[0]
+  const [dragOverDate, setDragOverDate] = useState(null)
+
+  const handleDragOver = (e, date) => {
+    const t = e.dataTransfer.types
+    if (!t.includes('dumptaskid') && !t.includes('scheduletaskid')) return
+    e.preventDefault()
+    e.dataTransfer.dropEffect = 'move'
+    setDragOverDate(date)
+  }
+
+  const handleDragLeave = (e, date) => {
+    if (!e.currentTarget.contains(e.relatedTarget)) {
+      setDragOverDate(d => d === date ? null : d)
+    }
+  }
+
+  const handleDrop = (e, date) => {
+    e.preventDefault()
+    setDragOverDate(null)
+    const taskId = e.dataTransfer.getData('dumpTaskId') || e.dataTransfer.getData('scheduletaskid')
+    if (!taskId) return
+    updateTask(taskId, { date, startTime: null, endTime: null })
+  }
+
+  const count = dates.length
+  // 날짜 수에 따라 열 수 결정
+  const cols = count <= 3 ? count : count <= 7 ? Math.ceil(count / 2) : Math.ceil(count / 3)
+  const rows = Math.ceil(count / cols)
 
   return (
     <div
-      className="p-3"
+      className="p-3 h-full"
       style={{
         display: 'grid',
-        gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))',
+        gridTemplateColumns: `repeat(${cols}, 1fr)`,
+        gridTemplateRows: `repeat(${rows}, 1fr)`,
         gap: 8,
-        alignContent: 'start',
       }}
     >
       {dates.map(date => {
         const d          = new Date(date + 'T00:00:00')
         const isToday    = date === todayStr
         const isSelected = date === selectedDate
+        const isDragOver = dragOverDate === date
         const dayLabel   = getDayLabel(date)
 
         const dayTasks = tasks
@@ -50,13 +80,17 @@ export default function CardView({ dates, selectedDate, onDayClick }) {
             key={date}
             className="rounded-lg p-3 cursor-pointer"
             style={{
-              background:  isSelected ? '#1a1a1a' : '#131313',
-              border:      `1px solid ${isToday ? '#60a5fa44' : isSelected ? '#2e2e2e' : '#1e1e1e'}`,
-              minHeight:   120,
+              background:  isDragOver ? '#1e2a3a' : isSelected ? '#1a1a1a' : '#131313',
+              border:      `1px solid ${isDragOver ? '#60a5fa88' : isToday ? '#60a5fa44' : isSelected ? '#2e2e2e' : '#1e1e1e'}`,
+              overflow:    'hidden',
+              transition:  'background 0.1s, border-color 0.1s',
             }}
             onClick={() => onDayClick(date)}
-            onMouseEnter={e => { if (!isSelected) e.currentTarget.style.borderColor = '#2e2e2e' }}
-            onMouseLeave={e => { if (!isSelected) e.currentTarget.style.borderColor = isToday ? '#60a5fa44' : '#1e1e1e' }}
+            onMouseEnter={e => { if (!isSelected && !isDragOver) e.currentTarget.style.borderColor = '#2e2e2e' }}
+            onMouseLeave={e => { if (!isSelected && !isDragOver) e.currentTarget.style.borderColor = isToday ? '#60a5fa44' : '#1e1e1e' }}
+            onDragOver={e => handleDragOver(e, date)}
+            onDragLeave={e => handleDragLeave(e, date)}
+            onDrop={e => handleDrop(e, date)}
           >
             {/* Date header */}
             <div className="flex items-baseline gap-1.5 mb-2">
@@ -75,7 +109,9 @@ export default function CardView({ dates, selectedDate, onDayClick }) {
 
             {/* Task list */}
             {dayTasks.length === 0 ? (
-              <p className="text-xs" style={{ color: '#2a2a2a' }}>일정 없음</p>
+              <p className="text-xs" style={{ color: isDragOver ? '#60a5fa44' : '#2a2a2a' }}>
+                {isDragOver ? '여기에 놓기' : '일정 없음'}
+              </p>
             ) : (
               <div className="flex flex-col gap-1">
                 {dayTasks.slice(0, 5).map(task => {

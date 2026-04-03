@@ -4,16 +4,16 @@ import EditTaskModal from '../modals/EditTaskModal'
 import { parseDump } from '../../utils/parseDump'
 
 export default function DumpPanel({ width = 260 }) {
-  const { tasks, projects, toggleTask, deleteTask, addTask } = useStore(s => ({
-    tasks:      s.tasks,
-    projects:   s.projects,   // parseDump에 사용
-    toggleTask: s.toggleTask,
-    deleteTask: s.deleteTask,
-    addTask:    s.addTask,
-  }))
+  const tasks      = useStore(s => s.tasks)
+  const projects   = useStore(s => s.projects)
+  const toggleTask = useStore(s => s.toggleTask)
+  const deleteTask = useStore(s => s.deleteTask)
+  const addTask    = useStore(s => s.addTask)
+  const updateTask = useStore(s => s.updateTask)
 
-  const [editTask,   setEditTask]   = useState(null)
-  const [dumpInput,  setDumpInput]  = useState('')
+  const [editTask,      setEditTask]      = useState(null)
+  const [dumpInput,     setDumpInput]     = useState('')
+  const [isDumpDragOver, setIsDumpDragOver] = useState(false)
   const inputRef      = useRef(null)
   const composingRef  = useRef(false)
   const draggingRef   = useRef(false)
@@ -36,7 +36,7 @@ export default function DumpPanel({ width = 260 }) {
   }
 
   // 날짜 없거나 프로젝트 없는 항목 = 덤프 (마일스톤 소속 태스크 제외)
-  const dumpTasks = tasks.filter(t => (!t.date || !t.projId) && !t.milestoneId)
+  const dumpTasks = tasks.filter(t => !t.date && !t.milestoneId)
 
   return (
     <div className="flex flex-col h-full flex-shrink-0" style={{ width, flexShrink: 0 }}>
@@ -76,7 +76,31 @@ export default function DumpPanel({ width = 260 }) {
       </div>
 
       {/* List */}
-      <div className="flex-1 overflow-y-auto px-2 py-2">
+      <div
+        className="flex-1 overflow-y-auto px-2 py-2"
+        style={{
+          background: isDumpDragOver ? '#1e2a1e' : 'transparent',
+          transition: 'background 0.1s',
+          outline: isDumpDragOver ? '2px dashed #34d39944' : 'none',
+          outlineOffset: -4,
+        }}
+        onDragOver={(e) => {
+          if (!e.dataTransfer.types.includes('scheduletaskid')) return
+          e.preventDefault()
+          e.dataTransfer.dropEffect = 'move'
+          setIsDumpDragOver(true)
+        }}
+        onDragLeave={(e) => {
+          if (!e.currentTarget.contains(e.relatedTarget)) setIsDumpDragOver(false)
+        }}
+        onDrop={(e) => {
+          e.preventDefault()
+          setIsDumpDragOver(false)
+          const taskId = e.dataTransfer.getData('scheduletaskid')
+          if (!taskId) return
+          updateTask(taskId, { date: null, endDate: null, startTime: null, endTime: null })
+        }}
+      >
         {dumpTasks.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-32 text-center">
             <p className="text-xs" style={{ color: '#2a2a2a' }}>덤프된 할 일이 없어요</p>

@@ -116,7 +116,7 @@ export default function Sidebar({ width = 210 }) {
               <button
                 key={item.id}
                 onClick={() => setPage(item.id)}
-                className="flex items-center gap-2.5 px-3 py-2 rounded text-sm w-full text-left transition-all"
+                className="flex items-center gap-2.5 px-3 py-2 rounded text-xs w-full text-left transition-all"
                 style={{
                   background: active ? '#1e1e1e' : 'transparent',
                   color: active ? '#efefef' : '#666',
@@ -141,7 +141,7 @@ export default function Sidebar({ width = 210 }) {
             <button
               key={p.id}
               onClick={() => setPage('project-detail', p.id)}
-              className="flex items-center gap-2.5 px-3 py-2 rounded text-sm w-full text-left transition-all"
+              className="flex items-center gap-2.5 px-3 py-2 rounded text-xs w-full text-left transition-all"
               style={{
                 background: currentPage === 'project-detail' && selectedProjectId === p.id ? '#1e1e1e' : 'transparent',
                 color: currentPage === 'project-detail' && selectedProjectId === p.id ? '#efefef' : '#888',
@@ -157,7 +157,7 @@ export default function Sidebar({ width = 210 }) {
         <div className="p-3" style={{ borderTop: '1px solid #1e1e1e' }}>
           <button
             onClick={() => setShowAddProject(true)}
-            className="flex items-center gap-2 px-3 py-2 rounded text-sm w-full transition-all"
+            className="flex items-center gap-2 px-3 py-2 rounded text-xs w-full transition-all"
             style={{ background: '#1a1a1a', color: '#888', border: '1px solid #222' }}
           >
             <span style={{ fontSize: 16, lineHeight: 1, color: '#555', marginTop: -1 }}>+</span>
