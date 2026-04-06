@@ -122,10 +122,10 @@ export default function TimeGrid({ date, projectFilter = null, onRequestAddTask,
     setCreateDrag({ startMin: min, endMin: min + SNAP })
   }, [yToMin])
 
-  // ── task mousedown → move ─────────────────────────────────
+  // ── task mousedown → move (click detection only, drag via HTML5) ──
   const handleTaskMouseDown = useCallback((e, task) => {
     if (e.button !== 0) return
-    e.preventDefault()
+    // e.preventDefault() 제거 → HTML5 dragstart가 동작하게
     e.stopPropagation() // prevent grid create-drag
     const taskStartMin = timeToMinutes(task.startTime)
     const taskEndMin   = timeToMinutes(task.endTime)
@@ -210,7 +210,7 @@ export default function TimeGrid({ date, projectFilter = null, onRequestAddTask,
   // ── dump drag-and-drop ────────────────────────────────────
   const handleDragOver = useCallback((e) => {
     const t = e.dataTransfer.types
-    if (!t.includes('dumptaskid') && !t.includes('scheduletaskid')) return
+    if (!t.includes('dumptaskid') && !t.includes('dumptaskids') && !t.includes('scheduletaskid')) return
     e.preventDefault()
     e.dataTransfer.dropEffect = 'move'
     const min = yToMin(e.clientY - getTop())
@@ -224,6 +224,21 @@ export default function TimeGrid({ date, projectFilter = null, onRequestAddTask,
   const handleDrop = useCallback((e) => {
     e.preventDefault()
     setDropIndicator(null)
+    // 다중 선택 드롭: 30분 간격으로 쌓기
+    const multiRaw = e.dataTransfer.getData('dumptaskids')
+    if (multiRaw) {
+      let startMin = yToMin(e.clientY - getTop())
+      JSON.parse(multiRaw).forEach(id => {
+        const t = tasks.find(tt => tt.id === id)
+        const duration = (t?.startTime && t?.endTime)
+          ? timeToMinutes(t.endTime) - timeToMinutes(t.startTime)
+          : (t?.duration ?? 60)
+        const endMin = Math.min(startMin + duration, effectiveEnd)
+        updateTask(id, { date, startTime: minutesToTime(startMin), endTime: minutesToTime(endMin) })
+        startMin = endMin
+      })
+      return
+    }
     const taskId = e.dataTransfer.getData('dumpTaskId') || e.dataTransfer.getData('scheduletaskid')
     if (!taskId) return
     const task = tasks.find(t => t.id === taskId)
@@ -233,11 +248,7 @@ export default function TimeGrid({ date, projectFilter = null, onRequestAddTask,
       ? timeToMinutes(task.endTime) - timeToMinutes(task.startTime)
       : task.duration ?? 60
     const endMin = Math.min(startMin + duration, effectiveEnd)
-    updateTask(taskId, {
-      date,
-      startTime: minutesToTime(startMin),
-      endTime:   minutesToTime(endMin),
-    })
+    updateTask(taskId, { date, startTime: minutesToTime(startMin), endTime: minutesToTime(endMin) })
   }, [tasks, yToMin, date, effectiveEnd, updateTask])
 
   // ── scroll to top on range change ────────────────────────
@@ -334,6 +345,7 @@ export default function TimeGrid({ date, projectFilter = null, onRequestAddTask,
         return (
           <div
             key={task.id}
+            draggable
             className="absolute rounded overflow-hidden group/task"
             style={{
               left: BLOCK_L, right: 4,
@@ -347,6 +359,14 @@ export default function TimeGrid({ date, projectFilter = null, onRequestAddTask,
               transition: isBeingMoved ? 'none' : 'box-shadow 0.1s',
             }}
             onMouseDown={(e) => handleTaskMouseDown(e, task)}
+            onDragStart={(e) => {
+              // HTML5 드래그 시작 → 커스텀 드래그 취소
+              isMoving.current = false
+              moveDragRef.current = null
+              setMoveDrag(null)
+              e.dataTransfer.effectAllowed = 'move'
+              e.dataTransfer.setData('scheduletaskid', task.id)
+            }}
           >
             <div className="px-2 pt-1 pointer-events-none">
               <p className="text-xs font-medium leading-tight truncate"
@@ -357,35 +377,10 @@ export default function TimeGrid({ date, projectFilter = null, onRequestAddTask,
                 {task.text}
               </p>
               <p className="text-xs mt-0.5" style={{ color: '#555', fontSize: 10 }}>
-                {isBeingMoved
-                  ? `${minutesToTime(moveDrag.startMin)} – ${minutesToTime(moveDrag.endMin)}`
-                  : `${task.startTime} – ${task.endTime}`}
+                {task.startTime} – {task.endTime}
               </p>
             </div>
-            {/* 날짜 이동 드래그 핸들 — 호버 시 노출 */}
-            <div
-              draggable
-              className="absolute opacity-0 group-hover/task:opacity-100 transition-opacity flex items-center justify-center"
-              style={{
-                top: 4, right: 22,
-                width: 14, height: 14,
-                cursor: 'grab',
-                pointerEvents: 'auto',
-              }}
-              title="다른 날짜로 이동"
-              onMouseDown={e => e.stopPropagation()}
-              onDragStart={(e) => {
-                e.dataTransfer.effectAllowed = 'move'
-                e.dataTransfer.setData('scheduletaskid', task.id)
-              }}
-            >
-              <svg width="8" height="10" viewBox="0 0 8 12" fill="#888">
-                <circle cx="2" cy="2" r="1.3"/><circle cx="6" cy="2" r="1.3"/>
-                <circle cx="2" cy="6" r="1.3"/><circle cx="6" cy="6" r="1.3"/>
-                <circle cx="2" cy="10" r="1.3"/><circle cx="6" cy="10" r="1.3"/>
-              </svg>
-            </div>
-            {/* 일정 제외 버튼 — 호버 시 노출 */}
+            {/* 클릭으로 덤프 복귀 버튼 — 호버 시 노출 */}
             <button
               className="absolute opacity-0 group-hover/task:opacity-100 transition-opacity"
               style={{

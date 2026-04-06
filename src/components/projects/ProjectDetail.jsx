@@ -231,7 +231,100 @@ function MilestoneList({ milestones, tasks, project, selectedId, onSelect }) {
 // ── TaskPanel ───────────────────────────────────────────────
 function TaskPanel({ tasks, project, milestone, onAddTask, onEditTask }) {
   const toggleTask = useStore(s => s.toggleTask)
-  const sorted = [...tasks].sort((a, b) => a.date.localeCompare(b.date))
+  const updateTask = useStore(s => s.updateTask)
+  const [isDragOver,  setIsDragOver]  = useState(false)
+  const [selectedIds, setSelectedIds] = useState(new Set())
+  const [lassoBox,    setLassoBox]    = useState(null)
+
+  const listRef  = useRef(null)
+  const lassoRef = useRef(null)
+
+  const sorted = [...tasks].sort((a, b) => {
+    if (!a.date && !b.date) return 0
+    if (!a.date) return 1
+    if (!b.date) return -1
+    return a.date.localeCompare(b.date)
+  })
+
+  // 라소 선택 (window 이벤트)
+  useEffect(() => {
+    const onMove = (e) => {
+      if (!lassoRef.current || !listRef.current) return
+      lassoRef.current.x2 = e.clientX
+      lassoRef.current.y2 = e.clientY
+      setLassoBox({ ...lassoRef.current })
+
+      const { x1, y1, x2, y2 } = lassoRef.current
+      if (Math.abs(x2 - x1) < 4 && Math.abs(y2 - y1) < 4) return
+
+      const selL = Math.min(x1, x2), selR = Math.max(x1, x2)
+      const selT = Math.min(y1, y2), selB = Math.max(y1, y2)
+
+      const taskEls = listRef.current.querySelectorAll('[data-taskid]')
+      const newIds = new Set()
+      taskEls.forEach(el => {
+        const r = el.getBoundingClientRect()
+        if (r.left < selR && r.right > selL && r.top < selB && r.bottom > selT)
+          newIds.add(el.getAttribute('data-taskid'))
+      })
+      setSelectedIds(newIds)
+    }
+    const onUp = () => {
+      if (!lassoRef.current) return
+      const { x1, y1, x2, y2 } = lassoRef.current
+      if (Math.abs(x2 - x1) < 4 && Math.abs(y2 - y1) < 4) setSelectedIds(new Set())
+      lassoRef.current = null
+      setLassoBox(null)
+    }
+    window.addEventListener('mousemove', onMove)
+    window.addEventListener('mouseup',   onUp)
+    return () => {
+      window.removeEventListener('mousemove', onMove)
+      window.removeEventListener('mouseup',   onUp)
+    }
+  }, [])
+
+  const handleContainerMouseDown = (e) => {
+    if (e.button !== 0) return
+    if (e.target.closest('[data-taskid]')) return
+    e.preventDefault()
+    lassoRef.current = { x1: e.clientX, y1: e.clientY, x2: e.clientX, y2: e.clientY }
+    if (!e.ctrlKey && !e.metaKey) setSelectedIds(new Set())
+  }
+
+  const handleTaskClick = (e, task) => {
+    if (e.ctrlKey || e.metaKey) {
+      setSelectedIds(prev => {
+        const next = new Set(prev)
+        next.has(task.id) ? next.delete(task.id) : next.add(task.id)
+        return next
+      })
+      return
+    }
+    setSelectedIds(new Set())
+    onEditTask(task)
+  }
+
+  const handleTaskDragStart = (e, task) => {
+    const ids = (selectedIds.has(task.id) && selectedIds.size > 1)
+      ? [...selectedIds]
+      : [task.id]
+    e.dataTransfer.effectAllowed = 'move'
+    if (ids.length > 1) e.dataTransfer.setData('scheduletaskids', JSON.stringify(ids))
+    e.dataTransfer.setData('scheduletaskid', ids[0])
+  }
+
+  const acceptTypes = (types) =>
+    types.includes('dumptaskid') || types.includes('dumptaskids')
+
+  const assignToProject = (ids) => {
+    ids.forEach(id => updateTask(id, {
+      projId:      project.id,
+      milestoneId: milestone?.id ?? null,
+    }))
+  }
+
+  const sel = selectedIds.size
 
   return (
     <div className="flex flex-col flex-1 overflow-hidden">
@@ -248,23 +341,74 @@ function TaskPanel({ tasks, project, milestone, onAddTask, onEditTask }) {
             </p>
           )}
         </div>
-        <span className="text-xs" style={{ color: '#555' }}>
-          {tasks.filter(t => t.done).length} / {tasks.length}
-        </span>
+        <div className="flex items-center gap-2">
+          <span className="text-xs" style={{ color: '#555' }}>
+            {tasks.filter(t => t.done).length} / {tasks.length}
+          </span>
+          {sel > 0 && (
+            <>
+              <span className="text-xs px-1.5 py-0.5 rounded"
+                style={{ background: '#60a5fa22', color: '#60a5fa', border: '1px solid #60a5fa33' }}>
+                {sel}개 선택
+              </span>
+              <button onClick={() => setSelectedIds(new Set())} className="text-xs" style={{ color: '#444' }}>✕</button>
+            </>
+          )}
+        </div>
       </div>
 
-      {/* List */}
-      <div className="flex-1 overflow-y-auto px-3 py-2">
+      {/* List — 드롭 존 + 라소 선택 */}
+      <div
+        ref={listRef}
+        className="flex-1 overflow-y-auto px-3 py-2"
+        style={{
+          background:    isDragOver ? project.color + '0a' : 'transparent',
+          outline:       isDragOver ? `2px dashed ${project.color}44` : 'none',
+          outlineOffset: -4,
+          transition:    'background 0.1s',
+          userSelect:    'none',
+        }}
+        onMouseDown={handleContainerMouseDown}
+        onDragOver={e => {
+          if (!acceptTypes(e.dataTransfer.types)) return
+          e.preventDefault()
+          e.dataTransfer.dropEffect = 'move'
+          setIsDragOver(true)
+        }}
+        onDragLeave={e => {
+          if (!e.currentTarget.contains(e.relatedTarget)) setIsDragOver(false)
+        }}
+        onDrop={e => {
+          e.preventDefault()
+          setIsDragOver(false)
+          const multiRaw = e.dataTransfer.getData('dumptaskids')
+          if (multiRaw) { assignToProject(JSON.parse(multiRaw)); return }
+          const id = e.dataTransfer.getData('dumpTaskId')
+          if (id) assignToProject([id])
+        }}
+      >
         {sorted.length === 0 ? (
-          <p className="text-xs text-center py-10" style={{ color: '#333' }}>할 일이 없습니다.</p>
+          <p className="text-xs text-center py-10" style={{ color: isDragOver ? project.color + '88' : '#333' }}>
+            {isDragOver ? '여기에 놓기' : '할 일이 없습니다.'}
+          </p>
         ) : (
           <div className="flex flex-col gap-0.5">
-            {sorted.map(task => (
+            {sorted.map(task => {
+              const isSelected = selectedIds.has(task.id)
+              return (
               <div key={task.id}
-                className="flex items-start gap-2 px-2 py-2 rounded group cursor-pointer"
-                onClick={() => onEditTask(task)}
-                onMouseEnter={e => e.currentTarget.style.background = '#111'}
-                onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                data-taskid={task.id}
+                draggable
+                className="flex items-start gap-2 px-2 py-2 rounded group cursor-grab active:cursor-grabbing"
+                style={{
+                  background:  isSelected ? '#1a2535' : 'transparent',
+                  border:      `1px solid ${isSelected ? '#60a5fa55' : 'transparent'}`,
+                  borderRadius: 6,
+                }}
+                onClick={e => handleTaskClick(e, task)}
+                onDragStart={e => handleTaskDragStart(e, task)}
+                onMouseEnter={e => { if (!isSelected) e.currentTarget.style.background = '#111' }}
+                onMouseLeave={e => { if (!isSelected) e.currentTarget.style.background = 'transparent' }}
               >
                 <button
                   onClick={e => { e.stopPropagation(); toggleTask(task.id) }}
@@ -294,10 +438,24 @@ function TaskPanel({ tasks, project, milestone, onAddTask, onEditTask }) {
                 <span className="opacity-0 group-hover:opacity-100 text-xs flex-shrink-0 self-center"
                   style={{ color: '#555' }}>✎</span>
               </div>
-            ))}
+              )
+            })}
           </div>
         )}
       </div>
+
+      {/* 라소 선택 박스 */}
+      {lassoBox && Math.abs(lassoBox.x2 - lassoBox.x1) > 4 && (
+        <div className="fixed pointer-events-none" style={{
+          left:   Math.min(lassoBox.x1, lassoBox.x2),
+          top:    Math.min(lassoBox.y1, lassoBox.y2),
+          width:  Math.abs(lassoBox.x2 - lassoBox.x1),
+          height: Math.abs(lassoBox.y2 - lassoBox.y1),
+          border: '1px dashed #60a5fa88',
+          background: '#60a5fa0d',
+          zIndex: 9999,
+        }} />
+      )}
 
       <div className="p-3 flex-shrink-0" style={{ borderTop: '1px solid #1e1e1e' }}>
         <button onClick={onAddTask}
@@ -320,6 +478,7 @@ export default function ProjectDetail() {
   }))
 
   const [selectedMilestoneId, setSelectedMilestoneId] = useState(null)
+  const [showTimeline, setShowTimeline] = useState(true)
   const [taskModal, setTaskModal] = useState(null)
   const [editModal, setEditModal] = useState(null)
 
@@ -361,10 +520,26 @@ export default function ProjectDetail() {
             <p className="text-xs mt-0.5 truncate" style={{ color: '#555' }}>{project.desc}</p>
           )}
         </div>
-        <div className="flex items-center gap-3 flex-shrink-0">
+        <div className="flex items-center gap-2 flex-shrink-0">
           <span className="text-xs" style={{ color: '#555' }}>
             {projTasks.filter(t => t.done).length} / {projTasks.length}
           </span>
+          <button
+            onClick={() => setShowTimeline(v => !v)}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded text-xs transition-all"
+            style={{
+              background: showTimeline ? project.color + '22' : '#1a1a1a',
+              color:      showTimeline ? project.color : '#555',
+              border:     `1px solid ${showTimeline ? project.color + '55' : '#2a2a2a'}`,
+            }}
+          >
+            <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+              <rect x="1" y="5" width="10" height="2" rx="1" fill="currentColor" opacity="0.5"/>
+              <rect x="1" y="2" width="6" height="2" rx="1" fill="currentColor"/>
+              <rect x="1" y="8" width="8" height="2" rx="1" fill="currentColor" opacity="0.7"/>
+            </svg>
+            타임라인
+          </button>
           <button onClick={openAddTask}
             className="px-3 py-1.5 rounded text-xs font-medium"
             style={{ background: project.color, color: '#000' }}>
@@ -374,16 +549,17 @@ export default function ProjectDetail() {
       </div>
 
       {/* Timeline */}
-      <div className="flex-shrink-0 px-6 py-4"
-        style={{ borderBottom: '1px solid #1e1e1e', background: '#0c0c0c' }}>
-        <p className="text-xs font-medium mb-2" style={{ color: '#555' }}>타임라인</p>
-        <HorizontalTimeline
-          milestones={projMilestones}
-          project={project}
-          selectedId={selectedMilestoneId}
-          onSelect={setSelectedMilestoneId}
-        />
-      </div>
+      {showTimeline && (
+        <div className="flex-shrink-0 px-6 py-4"
+          style={{ borderBottom: '1px solid #1e1e1e', background: '#0c0c0c' }}>
+          <HorizontalTimeline
+            milestones={projMilestones}
+            project={project}
+            selectedId={selectedMilestoneId}
+            onSelect={setSelectedMilestoneId}
+          />
+        </div>
+      )}
 
       {/* Body */}
       <div className="flex flex-1 overflow-hidden">

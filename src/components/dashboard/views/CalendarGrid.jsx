@@ -36,7 +36,7 @@ export default function CalendarGrid({ dates, selectedDate, onDayClick }) {
 
   const handleDragOver = (e, date) => {
     const t = e.dataTransfer.types
-    if (!t.includes('dumptaskid') && !t.includes('scheduletaskid')) return
+    if (!t.includes('dumptaskid') && !t.includes('dumptaskids') && !t.includes('scheduletaskid')) return
     e.preventDefault()
     e.dataTransfer.dropEffect = 'move'
     setDragOverDate(date)
@@ -51,6 +51,11 @@ export default function CalendarGrid({ dates, selectedDate, onDayClick }) {
   const handleDrop = (e, date) => {
     e.preventDefault()
     setDragOverDate(null)
+    const multiRaw = e.dataTransfer.getData('dumptaskids')
+    if (multiRaw) {
+      JSON.parse(multiRaw).forEach(id => updateTask(id, { date, startTime: null, endTime: null }))
+      return
+    }
     const taskId = e.dataTransfer.getData('dumpTaskId') || e.dataTransfer.getData('scheduletaskid')
     if (!taskId) return
     updateTask(taskId, { date, startTime: null, endTime: null })
@@ -152,10 +157,17 @@ export default function CalendarGrid({ dates, selectedDate, onDayClick }) {
                       return (
                         <div
                           key={task.id}
-                          className="flex items-center gap-1 px-1 rounded"
+                          draggable
+                          className="flex items-center gap-1 px-1 rounded cursor-grab active:cursor-grabbing"
                           style={{
                             background: color + '18',
                             borderLeft: `2px solid ${color}`,
+                          }}
+                          onClick={e => e.stopPropagation()}
+                          onDragStart={e => {
+                            e.stopPropagation()
+                            e.dataTransfer.effectAllowed = 'move'
+                            e.dataTransfer.setData('scheduletaskid', task.id)
                           }}
                         >
                           <span

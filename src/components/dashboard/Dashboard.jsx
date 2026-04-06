@@ -1,7 +1,6 @@
 import React, { useState, useCallback } from 'react'
 import LeftPanel from './LeftPanel'
 import CenterPanel from './CenterPanel'
-import DumpPanel from './DumpPanel'
 import AddTaskModal from '../modals/AddTaskModal'
 import TimeSettingsModal from '../modals/TimeSettingsModal'
 import ResizeHandle from '../ResizeHandle'
@@ -9,10 +8,7 @@ import useStore from '../../store/useStore'
 
 const LEFT_MIN  = 180
 const LEFT_MAX  = 400
-const RIGHT_MIN = 180
-const RIGHT_MAX = 400
 const LEFT_DEFAULT  = 260
-const RIGHT_DEFAULT = 260
 
 export default function Dashboard() {
   const selectedDate = useStore(s => s.selectedDate)
@@ -20,7 +16,6 @@ export default function Dashboard() {
   const [taskModal,         setTaskModal]         = useState(null)
   const [timeSettingsModal, setTimeSettingsModal] = useState(false)
   const [leftWidth,         setLeftWidth]         = useState(LEFT_DEFAULT)
-  const [rightWidth,        setRightWidth]        = useState(RIGHT_DEFAULT)
 
   const handleRequestAddTask = (defaults = {}) => {
     setTaskModal({ defaultDate: selectedDate, ...defaults })
@@ -28,9 +23,6 @@ export default function Dashboard() {
 
   const onLeftResize  = useCallback((delta) => {
     setLeftWidth(w  => Math.min(LEFT_MAX,  Math.max(LEFT_MIN,  w + delta)))
-  }, [])
-  const onRightResize = useCallback((delta) => {
-    setRightWidth(w => Math.min(RIGHT_MAX, Math.max(RIGHT_MIN, w - delta)))
   }, [])
 
   return (
@@ -63,10 +55,6 @@ export default function Dashboard() {
         <ResizeHandle onResize={onLeftResize} />
 
         <CenterPanel onRequestAddTask={handleRequestAddTask} />
-
-        <ResizeHandle onResize={onRightResize} />
-
-        <DumpPanel width={rightWidth} />
       </div>
 
       {/* Modals */}

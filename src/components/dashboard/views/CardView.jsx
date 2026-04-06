@@ -19,7 +19,7 @@ export default function CardView({ dates, selectedDate, onDayClick }) {
 
   const handleDragOver = (e, date) => {
     const t = e.dataTransfer.types
-    if (!t.includes('dumptaskid') && !t.includes('scheduletaskid')) return
+    if (!t.includes('dumptaskid') && !t.includes('dumptaskids') && !t.includes('scheduletaskid')) return
     e.preventDefault()
     e.dataTransfer.dropEffect = 'move'
     setDragOverDate(date)
@@ -34,6 +34,11 @@ export default function CardView({ dates, selectedDate, onDayClick }) {
   const handleDrop = (e, date) => {
     e.preventDefault()
     setDragOverDate(null)
+    const multiRaw = e.dataTransfer.getData('dumptaskids')
+    if (multiRaw) {
+      JSON.parse(multiRaw).forEach(id => updateTask(id, { date, startTime: null, endTime: null }))
+      return
+    }
     const taskId = e.dataTransfer.getData('dumpTaskId') || e.dataTransfer.getData('scheduletaskid')
     if (!taskId) return
     updateTask(taskId, { date, startTime: null, endTime: null })
@@ -118,7 +123,17 @@ export default function CardView({ dates, selectedDate, onDayClick }) {
                   const proj  = projects.find(p => p.id === task.projId)
                   const color = proj?.color ?? '#555'
                   return (
-                    <div key={task.id} className="flex items-center gap-1.5">
+                    <div
+                      key={task.id}
+                      draggable
+                      className="flex items-center gap-1.5 cursor-grab active:cursor-grabbing"
+                      onClick={e => e.stopPropagation()}
+                      onDragStart={e => {
+                        e.stopPropagation()
+                        e.dataTransfer.effectAllowed = 'move'
+                        e.dataTransfer.setData('scheduletaskid', task.id)
+                      }}
+                    >
                       <span className="flex-shrink-0 w-1 h-1 rounded-full" style={{ background: task.done ? '#333' : color }} />
                       <span
                         className="text-xs truncate flex-1"

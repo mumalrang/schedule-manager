@@ -8,11 +8,16 @@ function TaskItem({ task, projects, toggleTask, setEditTask }) {
   const color = proj?.color ?? '#444'
   return (
     <div
-      className="flex items-center gap-2 px-2 py-1.5 rounded cursor-pointer group"
+      draggable
+      className="flex items-center gap-2 px-2 py-1.5 rounded cursor-grab active:cursor-grabbing group"
       style={{ background: 'transparent' }}
       onClick={() => setEditTask(task)}
       onMouseEnter={e => e.currentTarget.style.background = '#1a1a1a'}
       onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+      onDragStart={e => {
+        e.dataTransfer.effectAllowed = 'move'
+        e.dataTransfer.setData('scheduletaskid', task.id)
+      }}
     >
       {/* 프로젝트 색상 바 */}
       <span

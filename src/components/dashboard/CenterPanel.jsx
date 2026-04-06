@@ -28,6 +28,23 @@ function addDays(dateStr, n) {
   return toLocalStr(date)
 }
 
+// 해당 날짜가 속한 주의 월요일
+function getMondayOfWeek(dateStr) {
+  const [y, m, d] = dateStr.split('-').map(Number)
+  const date = new Date(y, m - 1, d)
+  const jsDay = date.getDay()
+  date.setDate(date.getDate() - (jsDay === 0 ? 6 : jsDay - 1))
+  return toLocalStr(date)
+}
+
+// 해당 날짜가 속한 달의 1일과 말일 및 일수
+function getMonthRange(dateStr) {
+  const [y, m] = dateStr.split('-').map(Number)
+  const first = `${y}-${String(m).padStart(2,'0')}-01`
+  const days  = new Date(y, m, 0).getDate()
+  return { first, days }
+}
+
 function getDateRange(start, end) {
   const [sy, sm, sd] = start.split('-').map(Number)
   const [ey, em, ed] = end.split('-').map(Number)
@@ -58,25 +75,58 @@ export default function CenterPanel({ onRequestAddTask }) {
   const setViewRangeAndDate = useStore(s => s.setViewRangeAndDate)
 
   const [showRangePicker, setShowRangePicker] = useState(false)
-  const isCustomRange = !STANDARD_DAYS.has(viewPreset)
+
+  // 현재 뷰가 "이번 달 1일~말일" 모드인지 감지
+  const isMonthMode = useMemo(() => {
+    const [y, m, d] = viewRangeStart.split('-').map(Number)
+    if (d !== 1) return false
+    return viewPreset === new Date(y, m, 0).getDate()
+  }, [viewRangeStart, viewPreset])
+
+  const isCustomRange = !STANDARD_DAYS.has(viewPreset) && !isMonthMode
 
   const rangeEnd = useMemo(() => addDays(viewRangeStart, viewPreset - 1), [viewRangeStart, viewPreset])
   const dates    = useMemo(() => getDateRange(viewRangeStart, rangeEnd), [viewRangeStart, rangeEnd])
 
-  const goBack    = useCallback(() => {
-    const s = addDays(viewRangeStart, -viewPreset)
-    setViewRangeAndDate(viewPreset, s, s)
-  }, [viewPreset, viewRangeStart, setViewRangeAndDate])
+  const goBack = useCallback(() => {
+    if (isMonthMode) {
+      const [y, m] = viewRangeStart.split('-').map(Number)
+      const pm = m === 1 ? 12 : m - 1
+      const py = m === 1 ? y - 1 : y
+      const { first, days } = getMonthRange(`${py}-${String(pm).padStart(2,'0')}-01`)
+      setViewRangeAndDate(days, first, first)
+    } else {
+      const s = addDays(viewRangeStart, -viewPreset)
+      setViewRangeAndDate(viewPreset, s, s)
+    }
+  }, [isMonthMode, viewPreset, viewRangeStart, setViewRangeAndDate])
 
   const goForward = useCallback(() => {
-    const s = addDays(viewRangeStart, viewPreset)
-    setViewRangeAndDate(viewPreset, s, s)
-  }, [viewPreset, viewRangeStart, setViewRangeAndDate])
+    if (isMonthMode) {
+      const [y, m] = viewRangeStart.split('-').map(Number)
+      const nm = m === 12 ? 1 : m + 1
+      const ny = m === 12 ? y + 1 : y
+      const { first, days } = getMonthRange(`${ny}-${String(nm).padStart(2,'0')}-01`)
+      setViewRangeAndDate(days, first, first)
+    } else {
+      const s = addDays(viewRangeStart, viewPreset)
+      setViewRangeAndDate(viewPreset, s, s)
+    }
+  }, [isMonthMode, viewPreset, viewRangeStart, setViewRangeAndDate])
 
   const handlePreset = useCallback((days) => {
     setShowRangePicker(false)
-    const start = days === 1 ? today : viewRangeStart
-    setViewRangeAndDate(days, start, start)
+    if (days === 1) {
+      setViewRangeAndDate(1, today, today)
+    } else if (days === 7) {
+      const monday = getMondayOfWeek(today)
+      setViewRangeAndDate(7, monday, monday)
+    } else if (days === 30) {
+      const { first, days: d } = getMonthRange(today)
+      setViewRangeAndDate(d, first, first)
+    } else {
+      setViewRangeAndDate(days, viewRangeStart, viewRangeStart)
+    }
   }, [today, viewRangeStart, setViewRangeAndDate])
 
   const handleRangeSelect = useCallback((start, end) => {
@@ -97,20 +147,25 @@ export default function CenterPanel({ onRequestAddTask }) {
       <div className="flex-shrink-0 px-3 pt-3 pb-2" style={{ borderBottom: '1px solid #1e1e1e' }}>
         {/* Preset buttons */}
         <div className="flex items-center gap-1 mb-2">
-          {PRESETS.map(p => (
-            <button
-              key={p.days}
-              onClick={() => handlePreset(p.days)}
-              className="px-2.5 py-1 rounded text-xs transition-all"
-              style={{
-                background: !isCustomRange && viewPreset === p.days ? '#2e2e2e' : 'transparent',
-                color:      !isCustomRange && viewPreset === p.days ? '#efefef' : '#555',
-                border:     !isCustomRange && viewPreset === p.days ? '1px solid #3e3e3e' : '1px solid transparent',
-              }}
-            >
-              {p.label}
-            </button>
-          ))}
+          {PRESETS.map(p => {
+            const isActive = p.days === 30
+              ? isMonthMode
+              : !isCustomRange && viewPreset === p.days
+            return (
+              <button
+                key={p.days}
+                onClick={() => handlePreset(p.days)}
+                className="px-2.5 py-1 rounded text-xs transition-all"
+                style={{
+                  background: isActive ? '#2e2e2e' : 'transparent',
+                  color:      isActive ? '#efefef' : '#555',
+                  border:     isActive ? '1px solid #3e3e3e' : '1px solid transparent',
+                }}
+              >
+                {p.label}
+              </button>
+            )
+          })}
 
           {/* 기간 선택 */}
           <div className="relative">

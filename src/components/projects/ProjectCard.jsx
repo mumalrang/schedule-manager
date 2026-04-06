@@ -1,7 +1,22 @@
 import React from 'react'
 import useStore from '../../store/useStore'
 
-export default function ProjectCard({ project }) {
+// 눈 아이콘 (보임/숨김)
+function EyeIcon({ visible }) {
+  return visible ? (
+    <svg width="13" height="13" viewBox="0 0 14 14" fill="none">
+      <path d="M1 7C1 7 3 3 7 3s6 4 6 4-2 4-6 4S1 7 1 7z" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round"/>
+      <circle cx="7" cy="7" r="1.8" stroke="currentColor" strokeWidth="1.3"/>
+    </svg>
+  ) : (
+    <svg width="13" height="13" viewBox="0 0 14 14" fill="none">
+      <path d="M1 7C1 7 3 3 7 3s6 4 6 4-2 4-6 4S1 7 1 7z" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round" opacity="0.4"/>
+      <line x1="2" y1="2" x2="12" y2="12" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round"/>
+    </svg>
+  )
+}
+
+export default function ProjectCard({ project, isHidden, onToggleHide }) {
   const { tasks, setPage } = useStore(s => ({
     tasks:   s.tasks,
     setPage: s.setPage,
@@ -13,9 +28,8 @@ export default function ProjectCard({ project }) {
   const pct       = total > 0 ? Math.round((done / total) * 100) : 0
 
   return (
-    <button
-      onClick={() => setPage('project-detail', project.id)}
-      className="flex flex-col text-left rounded-lg overflow-hidden transition-all group"
+    <div
+      className="flex flex-col text-left rounded-lg overflow-hidden transition-all group relative"
       style={{ background: '#131313', border: '1px solid #1e1e1e' }}
       onMouseEnter={e => e.currentTarget.style.borderColor = '#2e2e2e'}
       onMouseLeave={e => e.currentTarget.style.borderColor = '#1e1e1e'}
@@ -23,7 +37,26 @@ export default function ProjectCard({ project }) {
       {/* Color bar */}
       <div className="h-1 w-full" style={{ background: project.color }} />
 
-      <div className="p-4 flex flex-col gap-3 flex-1">
+      {/* 눈 토글 버튼 */}
+      <button
+        onClick={e => { e.stopPropagation(); onToggleHide(project.id) }}
+        className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center rounded"
+        style={{
+          width: 22, height: 22,
+          background: isHidden ? '#2a2a2a' : project.color + '22',
+          color: isHidden ? '#555' : project.color,
+          border: `1px solid ${isHidden ? '#333' : project.color + '44'}`,
+          zIndex: 2,
+        }}
+        title={isHidden ? '타임라인에 표시' : '타임라인에서 숨기기'}
+      >
+        <EyeIcon visible={!isHidden} />
+      </button>
+
+      <button
+        className="flex flex-col flex-1 text-left p-4 gap-3 w-full"
+        onClick={() => setPage('project-detail', project.id)}
+      >
         {/* Title & desc */}
         <div>
           <h3 className="text-sm font-semibold" style={{ color: '#efefef' }}>{project.name}</h3>
@@ -51,7 +84,7 @@ export default function ProjectCard({ project }) {
             />
           </div>
         )}
-      </div>
-    </button>
+      </button>
+    </div>
   )
 }
