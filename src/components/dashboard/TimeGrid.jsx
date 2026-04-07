@@ -7,6 +7,12 @@ const SNAP        = 15  // snap to 15-min intervals
 const DRAG_THRESHOLD = 4 // px before drag is recognised
 
 // ── helpers ────────────────────────────────────────────────
+function addDaysToDateStr(dateStr, days) {
+  const [y, m, d] = dateStr.split('-').map(Number)
+  const dt = new Date(y, m - 1, d + days)
+  return `${dt.getFullYear()}-${String(dt.getMonth()+1).padStart(2,'0')}-${String(dt.getDate()).padStart(2,'0')}`
+}
+
 export function timeToMinutes(t) {
   if (!t) return 0
   const [h, m] = t.split(':').map(Number)
@@ -227,15 +233,22 @@ export default function TimeGrid({ date, projectFilter = null, onRequestAddTask,
     // 다중 선택 드롭: 30분 간격으로 쌓기
     const multiRaw = e.dataTransfer.getData('dumptaskids')
     if (multiRaw) {
-      let startMin = yToMin(e.clientY - getTop())
+      let startMin   = yToMin(e.clientY - getTop())
+      let curDateStr = date
       JSON.parse(multiRaw).forEach(id => {
-        const t = tasks.find(tt => tt.id === id)
-        const duration = (t?.startTime && t?.endTime)
+        const t       = tasks.find(tt => tt.id === id)
+        const durMins = (t?.startTime && t?.endTime)
           ? timeToMinutes(t.endTime) - timeToMinutes(t.startTime)
           : (t?.duration ?? 60)
-        const endMin = Math.min(startMin + duration, effectiveEnd)
-        updateTask(id, { date, startTime: minutesToTime(startMin), endTime: minutesToTime(endMin) })
-        startMin = endMin
+        if (durMins >= 1440) {
+          const days = Math.round(durMins / 1440)
+          updateTask(id, { date: curDateStr, endDate: addDaysToDateStr(curDateStr, days - 1), startTime: null, endTime: null })
+          curDateStr = addDaysToDateStr(curDateStr, days)
+        } else {
+          const endMin = Math.min(startMin + durMins, effectiveEnd)
+          updateTask(id, { date: curDateStr, endDate: null, startTime: minutesToTime(startMin), endTime: minutesToTime(endMin) })
+          startMin = endMin
+        }
       })
       return
     }
@@ -243,12 +256,21 @@ export default function TimeGrid({ date, projectFilter = null, onRequestAddTask,
     if (!taskId) return
     const task = tasks.find(t => t.id === taskId)
     if (!task) return
-    const startMin = yToMin(e.clientY - getTop())
-    const duration = task.startTime && task.endTime
+    const startMin  = yToMin(e.clientY - getTop())
+    const durMins   = task.startTime && task.endTime
       ? timeToMinutes(task.endTime) - timeToMinutes(task.startTime)
       : task.duration ?? 60
-    const endMin = Math.min(startMin + duration, effectiveEnd)
-    updateTask(taskId, { date, startTime: minutesToTime(startMin), endTime: minutesToTime(endMin) })
+    // 1일 이상 → 날짜 범위로 처리 (시간 없음)
+    if (durMins >= 1440) {
+      const days = Math.round(durMins / 1440)
+      updateTask(taskId, {
+        date, endDate: addDaysToDateStr(date, days - 1),
+        startTime: null, endTime: null,
+      })
+      return
+    }
+    const endMin = Math.min(startMin + durMins, effectiveEnd)
+    updateTask(taskId, { date, endDate: null, startTime: minutesToTime(startMin), endTime: minutesToTime(endMin) })
   }, [tasks, yToMin, date, effectiveEnd, updateTask])
 
   // ── scroll to top on range change ────────────────────────
