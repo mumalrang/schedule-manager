@@ -103,7 +103,7 @@ function ProjectsTimeline({ projects, milestones, setPage, hiddenProjects }) {
       style={{ background: '#0c0c0c', border: '1px solid #1e1e1e' }}
     >
       <div className="px-4 pt-3 pb-1 flex items-center justify-between">
-        <p className="text-xs font-semibold" style={{ color: '#555' }}>전체 마일스톤 타임라인</p>
+        <p className="text-xs font-semibold" style={{ color: '#555' }}>전체 프로젝트 타임라인</p>
         <p className="text-xs" style={{ color: '#333' }}>
           {new Date(minDate.getTime() + 3 * 86400000).toLocaleDateString('ko-KR', { month: 'short', day: 'numeric' })}
           {' – '}

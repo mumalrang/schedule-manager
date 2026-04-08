@@ -78,12 +78,47 @@ function AddProjectModal({ onClose }) {
 }
 
 export default function Sidebar({ width = 210 }) {
-  const { projects, currentPage, selectedProjectId, setPage } = useStore(s => ({
+  const { projects, currentPage, selectedProjectId, setPage, goBack, goForward, historyIndex, pageHistory, updateTask } = useStore(s => ({
     projects:          s.projects,
     currentPage:       s.currentPage,
     selectedProjectId: s.selectedProjectId,
     setPage:           s.setPage,
+    goBack:            s.goBack,
+    goForward:         s.goForward,
+    historyIndex:      s.historyIndex,
+    pageHistory:       s.pageHistory,
+    updateTask:        s.updateTask,
   }))
+  const canBack    = historyIndex > 0
+  const canForward = historyIndex < (pageHistory?.length ?? 1) - 1
+  const [dragOverProjectId, setDragOverProjectId] = useState(null)
+
+  const isDumpDrag = (types) =>
+    types.includes('dumptaskid') || types.includes('dumptaskids')
+
+  const handleProjectDragOver = (e, projId) => {
+    if (!isDumpDrag(e.dataTransfer.types)) return
+    e.preventDefault()
+    e.dataTransfer.dropEffect = 'move'
+    setDragOverProjectId(projId)
+  }
+
+  const handleProjectDragLeave = (e) => {
+    if (!e.currentTarget.contains(e.relatedTarget)) setDragOverProjectId(null)
+  }
+
+  const handleProjectDrop = (e, projId) => {
+    e.preventDefault()
+    setDragOverProjectId(null)
+    const patch = { projId, milestoneId: null, date: null, startTime: null, endTime: null }
+    const multiRaw = e.dataTransfer.getData('dumptaskids')
+    if (multiRaw) {
+      JSON.parse(multiRaw).forEach(id => updateTask(id, patch))
+      return
+    }
+    const id = e.dataTransfer.getData('dumpTaskId') || e.dataTransfer.getData('dumptaskid')
+    if (id) updateTask(id, patch)
+  }
   const [showAddProject, setShowAddProject] = useState(false)
 
   const navItems = [
@@ -97,14 +132,46 @@ export default function Sidebar({ width = 210 }) {
         className="flex flex-col h-full flex-shrink-0"
         style={{ width, background: '#0e0e0e' }}
       >
-        {/* Logo */}
-        <div className="px-5 py-5 flex items-center gap-2" style={{ borderBottom: '1px solid #1e1e1e' }}>
-          <span className="text-sm font-semibold tracking-tight" style={{ color: '#efefef' }}>
+        {/* Logo + 뒤로/앞으로 */}
+        <div className="px-4 py-4 flex items-center gap-2" style={{ borderBottom: '1px solid #1e1e1e' }}>
+          <span className="text-sm font-semibold tracking-tight flex-1" style={{ color: '#efefef' }}>
             Schedule
           </span>
           <span className="text-xs px-1.5 py-0.5 rounded" style={{ background: '#1a1a1a', color: '#666', fontSize: 10 }}>
             beta
           </span>
+          <button
+            onClick={goBack}
+            disabled={!canBack}
+            title="뒤로"
+            className="flex items-center justify-center w-6 h-6 rounded transition-all"
+            style={{
+              background: canBack ? '#1a1a1a' : 'transparent',
+              color:      canBack ? '#aaa'    : '#333',
+              border:     `1px solid ${canBack ? '#2e2e2e' : 'transparent'}`,
+              cursor:     canBack ? 'pointer' : 'default',
+            }}
+          >
+            <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
+              <path d="M6.5 2L3.5 5l3 3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+            </svg>
+          </button>
+          <button
+            onClick={goForward}
+            disabled={!canForward}
+            title="앞으로"
+            className="flex items-center justify-center w-6 h-6 rounded transition-all"
+            style={{
+              background: canForward ? '#1a1a1a' : 'transparent',
+              color:      canForward ? '#aaa'    : '#333',
+              border:     `1px solid ${canForward ? '#2e2e2e' : 'transparent'}`,
+              cursor:     canForward ? 'pointer' : 'default',
+            }}
+          >
+            <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
+              <path d="M3.5 2L6.5 5l-3 3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+            </svg>
+          </button>
         </div>
 
         {/* Nav */}

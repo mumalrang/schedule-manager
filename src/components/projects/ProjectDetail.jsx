@@ -1,12 +1,11 @@
 import React, { useRef, useState, useEffect } from 'react'
-import AddTaskModal from '../modals/AddTaskModal'
 import EditTaskModal from '../modals/EditTaskModal'
 import useStore from '../../store/useStore'
 
 const DAY_LABELS = ['월','화','수','목','금','토','일']
 const todayStr = new Date().toISOString().split('T')[0]
 
-// ── HorizontalTimeline (milestones) ────────────────────────
+// ── HorizontalTimeline (milestones 기간 기준) ───────────────
 function HorizontalTimeline({ milestones, project, selectedId, onSelect }) {
   const containerRef = useRef(null)
   const [containerWidth, setContainerWidth] = useState(0)
@@ -20,15 +19,18 @@ function HorizontalTimeline({ milestones, project, selectedId, onSelect }) {
     return () => ro.disconnect()
   }, [])
 
-  if (milestones.length === 0) {
+  // 날짜 있는 마일스톤만 사용
+  const validMs = milestones.filter(m => m.startDate && m.endDate)
+
+  if (validMs.length === 0) {
     return (
       <div className="flex items-center justify-center py-4 text-xs" style={{ color: '#333' }}>
-        마일스톤이 없습니다. 왼쪽에서 추가하세요.
+        프로젝트 기간을 설정하세요.
       </div>
     )
   }
 
-  const allDates = milestones.flatMap(m => [
+  const allDates = validMs.flatMap(m => [
     new Date(m.startDate + 'T00:00:00'),
     new Date(m.endDate   + 'T00:00:00'),
   ])
@@ -45,10 +47,10 @@ function HorizontalTimeline({ milestones, project, selectedId, onSelect }) {
 
   const todayX = Math.ceil((now - minDate) / 86400000) * DAY_WIDTH
 
-  // Lane algorithm
+  // 레인 알고리즘
   const overlaps = (a, b) => a.startDate <= b.endDate && b.startDate <= a.endDate
   const lanes = []
-  ;[...milestones].sort((a,b) => a.startDate.localeCompare(b.startDate)).forEach(ms => {
+  ;[...validMs].sort((a,b) => a.startDate.localeCompare(b.startDate)).forEach(ms => {
     let placed = false
     for (const lane of lanes) {
       if (!lane.some(m => overlaps(m, ms))) { lane.push(ms); placed = true; break }
@@ -56,9 +58,9 @@ function HorizontalTimeline({ milestones, project, selectedId, onSelect }) {
     if (!placed) lanes.push([ms])
   })
 
-  const LANE_H = 28
+  const LANE_H  = 28
   const PAD_TOP = 26
-  const totalH = PAD_TOP + lanes.length * LANE_H + 6
+  const totalH  = PAD_TOP + lanes.length * LANE_H + 6
 
   const spacing = Math.max(1, Math.ceil(48 / DAY_WIDTH))
   const dateLabels = []
@@ -80,25 +82,28 @@ function HorizontalTimeline({ milestones, project, selectedId, onSelect }) {
         ))}
         {todayX >= 0 && todayX <= containerWidth && (
           <div className="absolute top-0 bottom-0"
-            style={{ left: todayX, borderLeft: '2px solid #ef4444', zIndex: 10 }} />
+            style={{ left: todayX, borderLeft: '2px solid #ef4444', zIndex: 10 }}>
+            <span className="absolute text-xs" style={{ top: 0, left: 3, color: '#ef4444', fontSize: 9 }}>오늘</span>
+          </div>
         )}
         {lanes.map((lane, li) => lane.map(ms => {
           const x = dateToX(ms.startDate)
           const w = dateToX(ms.endDate) + DAY_WIDTH - x - 6
           const isSelected = ms.id === selectedId
+          const isPast = ms.endDate < todayStr
           return (
             <button key={ms.id}
               onClick={() => onSelect(ms.id === selectedId ? null : ms.id)}
-              title={ms.name}
+              title={`${ms.name}\n${ms.startDate} ~ ${ms.endDate}`}
               className="absolute rounded px-2 text-xs font-medium truncate"
               style={{
                 left:       x + 3,
                 width:      Math.max(w, 20),
                 top:        PAD_TOP + li * LANE_H,
                 height:     LANE_H - 4,
-                background: isSelected ? project.color + '44' : project.color + '18',
-                border:     `1px solid ${isSelected ? project.color + 'cc' : project.color + '33'}`,
-                color:      isSelected ? project.color : project.color + '99',
+                background: isSelected ? project.color + '44' : isPast ? project.color + '14' : project.color + '22',
+                border:     `1px solid ${isSelected ? project.color + 'cc' : isPast ? project.color + '22' : project.color + '44'}`,
+                color:      isSelected ? project.color : isPast ? project.color + '55' : project.color + 'aa',
                 zIndex: 5,
               }}
             >
@@ -113,18 +118,33 @@ function HorizontalTimeline({ milestones, project, selectedId, onSelect }) {
 
 // ── MilestoneList ───────────────────────────────────────────
 function MilestoneList({ milestones, tasks, project, selectedId, onSelect }) {
-  const { addMilestone, deleteMilestone } = useStore(s => ({
+  const { addMilestone, updateMilestone, deleteMilestone } = useStore(s => ({
     addMilestone:    s.addMilestone,
+    updateMilestone: s.updateMilestone,
     deleteMilestone: s.deleteMilestone,
   }))
-  const [adding, setAdding]   = useState(false)
-  const [form, setForm]       = useState({ name: '', startDate: todayStr, endDate: todayStr })
+  const [adding,    setAdding]    = useState(false)
+  const [addForm,   setAddForm]   = useState({ name: '', startDate: todayStr, endDate: todayStr })
+  const [editingId, setEditingId] = useState(null)
+  const [editForm,  setEditForm]  = useState({ name: '', startDate: '', endDate: '' })
 
   const handleAdd = () => {
-    if (!form.name.trim()) return
-    addMilestone({ ...form, projId: project.id })
-    setForm({ name: '', startDate: todayStr, endDate: todayStr })
+    if (!addForm.name.trim()) return
+    addMilestone({ ...addForm, projId: project.id })
+    setAddForm({ name: '', startDate: todayStr, endDate: todayStr })
     setAdding(false)
+  }
+
+  const startEdit = (e, ms) => {
+    e.stopPropagation()
+    setEditingId(ms.id)
+    setEditForm({ name: ms.name, startDate: ms.startDate || todayStr, endDate: ms.endDate || todayStr })
+  }
+
+  const saveEdit = () => {
+    if (!editForm.name.trim()) return
+    updateMilestone(editingId, editForm)
+    setEditingId(null)
   }
 
   const projTasks = tasks.filter(t => t.projId === project.id)
@@ -135,7 +155,7 @@ function MilestoneList({ milestones, tasks, project, selectedId, onSelect }) {
 
       {/* Header */}
       <div className="px-4 py-3 flex-shrink-0" style={{ borderBottom: '1px solid #1e1e1e' }}>
-        <p className="text-xs font-semibold uppercase tracking-wide" style={{ color: '#555' }}>마일스톤</p>
+        <p className="text-xs font-semibold uppercase tracking-wide" style={{ color: '#555' }}>프로젝트</p>
       </div>
 
       {/* List */}
@@ -143,7 +163,7 @@ function MilestoneList({ milestones, tasks, project, selectedId, onSelect }) {
         {/* 전체 */}
         <button
           onClick={() => onSelect(null)}
-          className="w-full flex items-center gap-2 px-3 py-2 text-xs text-left transition-colors"
+          className="w-full flex items-center gap-2 px-3 py-2 text-xs text-left"
           style={{
             background: selectedId === null ? '#1c1c1c' : 'transparent',
             color:       selectedId === null ? '#efefef' : '#777',
@@ -157,55 +177,108 @@ function MilestoneList({ milestones, tasks, project, selectedId, onSelect }) {
         </button>
 
         {milestones.map(ms => {
-          const msTasks = tasks.filter(t => t.milestoneId === ms.id)
-          const done = msTasks.filter(t => t.done).length
+          const msTasks   = tasks.filter(t => t.milestoneId === ms.id)
+          const done      = msTasks.filter(t => t.done).length
           const isSelected = ms.id === selectedId
+          const isEditing  = ms.id === editingId
+
+          if (isEditing) {
+            return (
+              <div key={ms.id} className="px-3 py-2 flex flex-col gap-1.5"
+                style={{ background: '#131313', borderLeft: `2px solid ${project.color}` }}>
+                <input
+                  autoFocus
+                  value={editForm.name}
+                  onChange={e => setEditForm(f => ({ ...f, name: e.target.value }))}
+                  onKeyDown={e => { if (e.key === 'Enter') saveEdit(); if (e.key === 'Escape') setEditingId(null) }}
+                  placeholder="프로젝트 이름"
+                  className="w-full px-2 py-1 rounded text-xs outline-none"
+                  style={{ background: '#1a1a1a', color: '#efefef', border: '1px solid #2e2e2e' }}
+                />
+                <div className="flex flex-col gap-1">
+                  <input type="date" value={editForm.startDate}
+                    onChange={e => setEditForm(f => ({ ...f, startDate: e.target.value }))}
+                    className="w-full px-1.5 py-1 rounded text-xs outline-none"
+                    style={{ background: '#1a1a1a', color: '#efefef', border: '1px solid #2e2e2e', colorScheme: 'dark' }} />
+                  <input type="date" value={editForm.endDate}
+                    onChange={e => setEditForm(f => ({ ...f, endDate: e.target.value }))}
+                    className="w-full px-1.5 py-1 rounded text-xs outline-none"
+                    style={{ background: '#1a1a1a', color: '#efefef', border: '1px solid #2e2e2e', colorScheme: 'dark' }} />
+                </div>
+                <div className="flex gap-1">
+                  <button onClick={saveEdit}
+                    className="flex-1 py-1 rounded text-xs font-medium"
+                    style={{ background: project.color, color: '#000' }}>저장</button>
+                  <button onClick={() => setEditingId(null)}
+                    className="flex-1 py-1 rounded text-xs"
+                    style={{ background: '#1a1a1a', color: '#777', border: '1px solid #222' }}>취소</button>
+                </div>
+              </div>
+            )
+          }
+
           return (
             <div key={ms.id}
-              className="group flex items-center gap-2 px-3 py-2 cursor-pointer transition-colors text-xs"
+              className="group flex items-start gap-2 px-3 py-2 cursor-pointer text-xs"
               onClick={() => onSelect(ms.id === selectedId ? null : ms.id)}
               style={{
                 background: isSelected ? '#1c1c1c' : 'transparent',
-                color:       isSelected ? '#efefef' : '#777',
                 borderLeft:  isSelected ? `2px solid ${project.color}` : '2px solid transparent',
               }}
               onMouseEnter={e => { if (!isSelected) e.currentTarget.style.background = '#131313' }}
               onMouseLeave={e => { if (!isSelected) e.currentTarget.style.background = 'transparent' }}
             >
-              <span className="flex-1 truncate">{ms.name}</span>
-              <span className="flex-shrink-0" style={{ color: '#444' }}>{done}/{msTasks.length}</span>
-              <button
-                onClick={e => { e.stopPropagation(); deleteMilestone(ms.id) }}
-                className="opacity-0 group-hover:opacity-100 flex-shrink-0 w-4 h-4 flex items-center justify-center rounded"
-                style={{ color: '#555' }}
-              >×</button>
+              <div className="flex-1 min-w-0">
+                <p className="truncate" style={{ color: isSelected ? '#efefef' : '#777' }}>{ms.name}</p>
+                {(ms.startDate && ms.endDate) ? (
+                  <p className="mt-0.5" style={{ color: '#444', fontSize: 10 }}>
+                    {ms.startDate} ~ {ms.endDate}
+                  </p>
+                ) : (
+                  <p className="mt-0.5" style={{ color: '#333', fontSize: 10 }}>기간 미설정</p>
+                )}
+              </div>
+              <div className="flex items-center gap-1 flex-shrink-0 mt-0.5">
+                <span style={{ color: '#444' }}>{done}/{msTasks.length}</span>
+                <button
+                  onClick={e => startEdit(e, ms)}
+                  className="opacity-0 group-hover:opacity-100 w-4 h-4 flex items-center justify-center rounded"
+                  style={{ color: '#555' }}
+                  title="기간 수정"
+                >✎</button>
+                <button
+                  onClick={e => { e.stopPropagation(); deleteMilestone(ms.id) }}
+                  className="opacity-0 group-hover:opacity-100 w-4 h-4 flex items-center justify-center rounded"
+                  style={{ color: '#555' }}
+                >×</button>
+              </div>
             </div>
           )
         })}
       </div>
 
-      {/* Add */}
+      {/* Add milestone */}
       <div className="p-3 flex-shrink-0" style={{ borderTop: '1px solid #1e1e1e' }}>
         {adding ? (
           <div className="flex flex-col gap-2">
             <input
               autoFocus
-              value={form.name}
-              onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
+              value={addForm.name}
+              onChange={e => setAddForm(f => ({ ...f, name: e.target.value }))}
               onKeyDown={e => { if (e.key === 'Enter') handleAdd(); if (e.key === 'Escape') setAdding(false) }}
               placeholder="마일스톤 이름"
               className="w-full px-2 py-1.5 rounded text-xs outline-none"
               style={{ background: '#131313', color: '#efefef', border: '1px solid #2e2e2e' }}
             />
-            <div className="flex gap-1">
-              <input type="date" value={form.startDate}
-                onChange={e => setForm(f => ({ ...f, startDate: e.target.value }))}
-                className="flex-1 px-1.5 py-1.5 rounded text-xs outline-none"
-                style={{ background: '#131313', color: '#efefef', border: '1px solid #2e2e2e', colorScheme: 'dark', minWidth: 0 }} />
-              <input type="date" value={form.endDate}
-                onChange={e => setForm(f => ({ ...f, endDate: e.target.value }))}
-                className="flex-1 px-1.5 py-1.5 rounded text-xs outline-none"
-                style={{ background: '#131313', color: '#efefef', border: '1px solid #2e2e2e', colorScheme: 'dark', minWidth: 0 }} />
+            <div className="flex flex-col gap-1">
+              <input type="date" value={addForm.startDate}
+                onChange={e => setAddForm(f => ({ ...f, startDate: e.target.value }))}
+                className="w-full px-1.5 py-1.5 rounded text-xs outline-none"
+                style={{ background: '#131313', color: '#efefef', border: '1px solid #2e2e2e', colorScheme: 'dark' }} />
+              <input type="date" value={addForm.endDate}
+                onChange={e => setAddForm(f => ({ ...f, endDate: e.target.value }))}
+                className="w-full px-1.5 py-1.5 rounded text-xs outline-none"
+                style={{ background: '#131313', color: '#efefef', border: '1px solid #2e2e2e', colorScheme: 'dark' }} />
             </div>
             <div className="flex gap-1">
               <button onClick={handleAdd}
@@ -220,7 +293,7 @@ function MilestoneList({ milestones, tasks, project, selectedId, onSelect }) {
           <button onClick={() => setAdding(true)}
             className="w-full py-2 rounded text-xs"
             style={{ background: '#131313', color: project.color, border: `1px solid ${project.color}33` }}>
-            + 마일스톤 추가
+            + 프로젝트 추가
           </button>
         )}
       </div>
@@ -229,24 +302,23 @@ function MilestoneList({ milestones, tasks, project, selectedId, onSelect }) {
 }
 
 // ── TaskPanel ───────────────────────────────────────────────
-function TaskPanel({ tasks, project, milestone, onAddTask, onEditTask }) {
+function TaskPanel({ tasks, project, milestone, onEditTask }) {
   const toggleTask = useStore(s => s.toggleTask)
+  const addTask    = useStore(s => s.addTask)
   const updateTask = useStore(s => s.updateTask)
+
   const [isDragOver,  setIsDragOver]  = useState(false)
   const [selectedIds, setSelectedIds] = useState(new Set())
   const [lassoBox,    setLassoBox]    = useState(null)
+  const [input,       setInput]       = useState('')
 
-  const listRef  = useRef(null)
-  const lassoRef = useRef(null)
+  const listRef      = useRef(null)
+  const lassoRef     = useRef(null)
+  const composingRef = useRef(false)
 
-  const sorted = [...tasks].sort((a, b) => {
-    if (!a.date && !b.date) return 0
-    if (!a.date) return 1
-    if (!b.date) return -1
-    return a.date.localeCompare(b.date)
-  })
+  const sorted = [...tasks].sort((a, b) => a.text.localeCompare(b.text, 'ko'))
 
-  // 라소 선택 (window 이벤트)
+  // 라소 선택
   useEffect(() => {
     const onMove = (e) => {
       if (!lassoRef.current || !listRef.current) return
@@ -287,6 +359,7 @@ function TaskPanel({ tasks, project, milestone, onAddTask, onEditTask }) {
   const handleContainerMouseDown = (e) => {
     if (e.button !== 0) return
     if (e.target.closest('[data-taskid]')) return
+    if (e.target.closest('button') || e.target.closest('input')) return
     e.preventDefault()
     lassoRef.current = { x1: e.clientX, y1: e.clientY, x2: e.clientX, y2: e.clientY }
     if (!e.ctrlKey && !e.metaKey) setSelectedIds(new Set())
@@ -324,6 +397,20 @@ function TaskPanel({ tasks, project, milestone, onAddTask, onEditTask }) {
     }))
   }
 
+  const handleAddTask = () => {
+    const trimmed = input.trim()
+    if (!trimmed) return
+    addTask({
+      text:        trimmed,
+      projId:      project.id,
+      milestoneId: milestone?.id ?? null,
+      date:        null,
+      startTime:   null,
+      endTime:     null,
+    })
+    setInput('')
+  }
+
   const sel = selectedIds.size
 
   return (
@@ -335,9 +422,9 @@ function TaskPanel({ tasks, project, milestone, onAddTask, onEditTask }) {
           <p className="text-sm font-medium" style={{ color: '#efefef' }}>
             {milestone ? milestone.name : '전체 할 일'}
           </p>
-          {milestone && (
+          {milestone && milestone.startDate && milestone.endDate && (
             <p className="text-xs mt-0.5" style={{ color: '#555' }}>
-              {milestone.startDate} – {milestone.endDate}
+              {milestone.startDate} ~ {milestone.endDate}
             </p>
           )}
         </div>
@@ -357,7 +444,7 @@ function TaskPanel({ tasks, project, milestone, onAddTask, onEditTask }) {
         </div>
       </div>
 
-      {/* List — 드롭 존 + 라소 선택 */}
+      {/* Task list — 드롭 존 + 라소 */}
       <div
         ref={listRef}
         className="flex-1 overflow-y-auto px-3 py-2"
@@ -383,7 +470,7 @@ function TaskPanel({ tasks, project, milestone, onAddTask, onEditTask }) {
           setIsDragOver(false)
           const multiRaw = e.dataTransfer.getData('dumptaskids')
           if (multiRaw) { assignToProject(JSON.parse(multiRaw)); return }
-          const id = e.dataTransfer.getData('dumpTaskId')
+          const id = e.dataTransfer.getData('dumpTaskId') || e.dataTransfer.getData('dumptaskid')
           if (id) assignToProject([id])
         }}
       >
@@ -396,55 +483,48 @@ function TaskPanel({ tasks, project, milestone, onAddTask, onEditTask }) {
             {sorted.map(task => {
               const isSelected = selectedIds.has(task.id)
               return (
-              <div key={task.id}
-                data-taskid={task.id}
-                draggable
-                className="flex items-start gap-2 px-2 py-2 rounded group cursor-grab active:cursor-grabbing"
-                style={{
-                  background:  isSelected ? '#1a2535' : 'transparent',
-                  border:      `1px solid ${isSelected ? '#60a5fa55' : 'transparent'}`,
-                  borderRadius: 6,
-                }}
-                onClick={e => handleTaskClick(e, task)}
-                onDragStart={e => handleTaskDragStart(e, task)}
-                onMouseEnter={e => { if (!isSelected) e.currentTarget.style.background = '#111' }}
-                onMouseLeave={e => { if (!isSelected) e.currentTarget.style.background = 'transparent' }}
-              >
-                <button
-                  onClick={e => { e.stopPropagation(); toggleTask(task.id) }}
-                  className="w-4 h-4 rounded flex-shrink-0 mt-0.5 flex items-center justify-center"
+                <div key={task.id}
+                  data-taskid={task.id}
+                  draggable
+                  className="flex items-center gap-2 px-2 py-2 rounded group cursor-grab active:cursor-grabbing"
                   style={{
-                    border:     `1.5px solid ${task.done ? project.color : '#333'}`,
-                    background: task.done ? project.color : 'transparent',
+                    background:   isSelected ? '#1a2535' : 'transparent',
+                    border:       `1px solid ${isSelected ? '#60a5fa55' : 'transparent'}`,
+                    borderRadius: 6,
                   }}
+                  onClick={e => handleTaskClick(e, task)}
+                  onDragStart={e => handleTaskDragStart(e, task)}
+                  onMouseEnter={e => { if (!isSelected) e.currentTarget.style.background = '#111' }}
+                  onMouseLeave={e => { if (!isSelected) e.currentTarget.style.background = 'transparent' }}
                 >
-                  {task.done && (
-                    <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
-                      <path d="M2 5l2.5 2.5L8 3" stroke="#000" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-                    </svg>
-                  )}
-                </button>
-                <div className="flex-1 min-w-0">
-                  <p className="text-xs" style={{
-                    color: task.done ? '#444' : '#ccc',
+                  <button
+                    onClick={e => { e.stopPropagation(); toggleTask(task.id) }}
+                    className="w-4 h-4 rounded flex-shrink-0 flex items-center justify-center"
+                    style={{
+                      border:     `1.5px solid ${task.done ? project.color : '#333'}`,
+                      background: task.done ? project.color : 'transparent',
+                    }}
+                  >
+                    {task.done && (
+                      <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
+                        <path d="M2 5l2.5 2.5L8 3" stroke="#000" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                      </svg>
+                    )}
+                  </button>
+                  <p className="flex-1 text-xs truncate" style={{
+                    color:          task.done ? '#444' : isSelected ? '#aad4ff' : '#ccc',
                     textDecoration: task.done ? 'line-through' : 'none',
                   }}>{task.text}</p>
-                  <p className="text-xs mt-0.5" style={{ color: '#444', fontSize: 10 }}>
-                    {task.endDate ? `${task.date} – ${task.endDate}` : task.date}
-                    {task.startTime && ` · ${task.startTime}`}
-                    {task.endTime && `–${task.endTime}`}
-                  </p>
+                  <span className="opacity-0 group-hover:opacity-100 text-xs flex-shrink-0"
+                    style={{ color: '#555' }}>✎</span>
                 </div>
-                <span className="opacity-0 group-hover:opacity-100 text-xs flex-shrink-0 self-center"
-                  style={{ color: '#555' }}>✎</span>
-              </div>
               )
             })}
           </div>
         )}
       </div>
 
-      {/* 라소 선택 박스 */}
+      {/* 라소 박스 */}
       {lassoBox && Math.abs(lassoBox.x2 - lassoBox.x1) > 4 && (
         <div className="fixed pointer-events-none" style={{
           left:   Math.min(lassoBox.x1, lassoBox.x2),
@@ -457,12 +537,25 @@ function TaskPanel({ tasks, project, milestone, onAddTask, onEditTask }) {
         }} />
       )}
 
-      <div className="p-3 flex-shrink-0" style={{ borderTop: '1px solid #1e1e1e' }}>
-        <button onClick={onAddTask}
-          className="w-full py-2 rounded text-xs"
-          style={{ background: '#131313', color: project.color, border: `1px solid ${project.color}33` }}>
-          + 할 일 추가
-        </button>
+      {/* 할 일 입력 */}
+      <div className="px-3 py-2 flex-shrink-0" style={{ borderTop: '1px solid #1e1e1e' }}>
+        <input
+          value={input}
+          onChange={e => setInput(e.target.value)}
+          onCompositionStart={() => { composingRef.current = true }}
+          onCompositionEnd={() => { composingRef.current = false }}
+          onKeyDown={e => { if (e.key === 'Enter' && !composingRef.current) { e.preventDefault(); handleAddTask() } }}
+          placeholder="할 일 입력 후 Enter..."
+          className="w-full px-3 py-2 rounded text-xs outline-none"
+          style={{
+            background: '#131313',
+            border:     '1px solid #222',
+            color:      '#ddd',
+            caretColor: project.color,
+          }}
+          onFocus={e => e.target.style.borderColor = project.color + '55'}
+          onBlur={e  => e.target.style.borderColor = '#222'}
+        />
       </div>
     </div>
   )
@@ -478,13 +571,11 @@ export default function ProjectDetail() {
   }))
 
   const [selectedMilestoneId, setSelectedMilestoneId] = useState(null)
-  const [showTimeline, setShowTimeline] = useState(true)
-  const [taskModal, setTaskModal] = useState(null)
-  const [editModal, setEditModal] = useState(null)
+  const [showTimeline,        setShowTimeline]        = useState(true)
+  const [editModal,           setEditModal]           = useState(null)
 
   const project = projects.find(p => p.id === selectedProjectId)
 
-  // 프로젝트 바뀌면 마일스톤 선택 초기화
   useEffect(() => { setSelectedMilestoneId(null) }, [selectedProjectId])
 
   if (!project) {
@@ -495,18 +586,12 @@ export default function ProjectDetail() {
     )
   }
 
-  const projMilestones  = milestones.filter(m => m.projId === project.id)
+  const projMilestones    = milestones.filter(m => m.projId === project.id)
   const selectedMilestone = projMilestones.find(m => m.id === selectedMilestoneId) ?? null
-  const projTasks       = tasks.filter(t => t.projId === project.id)
-  const displayTasks    = selectedMilestoneId
+  const projTasks         = tasks.filter(t => t.projId === project.id)
+  const displayTasks      = selectedMilestoneId
     ? tasks.filter(t => t.milestoneId === selectedMilestoneId)
     : projTasks
-
-  const openAddTask = () => setTaskModal({
-    defaultDate:        todayStr,
-    defaultProjId:      project.id,
-    defaultMilestoneId: selectedMilestoneId,
-  })
 
   return (
     <div className="flex flex-col h-full overflow-hidden">
@@ -540,15 +625,10 @@ export default function ProjectDetail() {
             </svg>
             타임라인
           </button>
-          <button onClick={openAddTask}
-            className="px-3 py-1.5 rounded text-xs font-medium"
-            style={{ background: project.color, color: '#000' }}>
-            + 할 일
-          </button>
         </div>
       </div>
 
-      {/* Timeline */}
+      {/* Timeline — 마일스톤 기간 기준 */}
       {showTimeline && (
         <div className="flex-shrink-0 px-6 py-4"
           style={{ borderBottom: '1px solid #1e1e1e', background: '#0c0c0c' }}>
@@ -574,14 +654,10 @@ export default function ProjectDetail() {
           tasks={displayTasks}
           project={project}
           milestone={selectedMilestone}
-          onAddTask={openAddTask}
           onEditTask={task => setEditModal({ task })}
         />
       </div>
 
-      {taskModal && (
-        <AddTaskModal {...taskModal} onClose={() => setTaskModal(null)} />
-      )}
       {editModal && (
         <EditTaskModal task={editModal.task} onClose={() => setEditModal(null)} />
       )}

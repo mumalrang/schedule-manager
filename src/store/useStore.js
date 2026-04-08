@@ -104,10 +104,33 @@ const useStore = create((set, get) => {
     ...initial,
     currentPage: 'dashboard',
     selectedProjectId: null,
+    pageHistory: [{ page: 'dashboard', projectId: null }],
+    historyIndex: 0,
 
     // ── navigation ─────────────────────────────────────────
-    setPage: (page, projectId = null) =>
-      set({ currentPage: page, selectedProjectId: projectId }),
+    setPage: (page, projectId = null) => {
+      const { pageHistory, historyIndex } = get()
+      const cur = pageHistory[historyIndex]
+      if (cur.page === page && cur.projectId === projectId) return
+      const next = [...pageHistory.slice(0, historyIndex + 1), { page, projectId }]
+      set({ currentPage: page, selectedProjectId: projectId, pageHistory: next, historyIndex: next.length - 1 })
+    },
+
+    goBack: () => {
+      const { pageHistory, historyIndex } = get()
+      if (historyIndex <= 0) return
+      const idx = historyIndex - 1
+      const { page, projectId } = pageHistory[idx]
+      set({ currentPage: page, selectedProjectId: projectId, historyIndex: idx })
+    },
+
+    goForward: () => {
+      const { pageHistory, historyIndex } = get()
+      if (historyIndex >= pageHistory.length - 1) return
+      const idx = historyIndex + 1
+      const { page, projectId } = pageHistory[idx]
+      set({ currentPage: page, selectedProjectId: projectId, historyIndex: idx })
+    },
 
     // ── selected date ──────────────────────────────────────
     setSelectedDate: (date) =>
