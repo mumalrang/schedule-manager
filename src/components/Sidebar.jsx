@@ -204,20 +204,28 @@ export default function Sidebar({ width = 210 }) {
           <p className="px-3 mb-1 text-xs font-medium uppercase tracking-widest" style={{ color: '#444', fontSize: 10 }}>
             프로젝트
           </p>
-          {projects.map(p => (
-            <button
-              key={p.id}
-              onClick={() => setPage('project-detail', p.id)}
-              className="flex items-center gap-2.5 px-3 py-2 rounded text-xs w-full text-left transition-all"
-              style={{
-                background: currentPage === 'project-detail' && selectedProjectId === p.id ? '#1e1e1e' : 'transparent',
-                color: currentPage === 'project-detail' && selectedProjectId === p.id ? '#efefef' : '#888',
-              }}
-            >
-              <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: p.color }} />
-              <span className="truncate">{p.name}</span>
-            </button>
-          ))}
+          {projects.map(p => {
+            const isActive  = currentPage === 'project-detail' && selectedProjectId === p.id
+            const isDragOver = dragOverProjectId === p.id
+            return (
+              <button
+                key={p.id}
+                onClick={() => setPage('project-detail', p.id)}
+                onDragOver={e => handleProjectDragOver(e, p.id)}
+                onDragLeave={handleProjectDragLeave}
+                onDrop={e => handleProjectDrop(e, p.id)}
+                className="flex items-center gap-2.5 px-3 py-2 rounded text-xs w-full text-left transition-all"
+                style={{
+                  background: isDragOver ? p.color + '22' : isActive ? '#1e1e1e' : 'transparent',
+                  color:      isDragOver ? p.color         : isActive ? '#efefef' : '#888',
+                  border:     `1px solid ${isDragOver ? p.color + '55' : 'transparent'}`,
+                }}
+              >
+                <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: p.color }} />
+                <span className="truncate">{p.name}</span>
+              </button>
+            )
+          })}
         </div>
 
         {/* Add project */}
