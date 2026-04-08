@@ -17,10 +17,18 @@ function EyeIcon({ visible }) {
 }
 
 export default function ProjectCard({ project, isHidden, onToggleHide }) {
-  const { tasks, setPage } = useStore(s => ({
-    tasks:   s.tasks,
-    setPage: s.setPage,
+  const { tasks, setPage, deleteProject } = useStore(s => ({
+    tasks:         s.tasks,
+    setPage:       s.setPage,
+    deleteProject: s.deleteProject,
   }))
+
+  const handleDelete = (e) => {
+    e.stopPropagation()
+    if (window.confirm(`"${project.name}" 프로젝트를 삭제할까요?\n관련 할 일도 모두 삭제됩니다.`)) {
+      deleteProject(project.id)
+    }
+  }
 
   const projTasks = tasks.filter(t => t.projId === project.id)
   const total     = projTasks.length
@@ -37,21 +45,39 @@ export default function ProjectCard({ project, isHidden, onToggleHide }) {
       {/* Color bar */}
       <div className="h-1 w-full" style={{ background: project.color }} />
 
-      {/* 눈 토글 버튼 */}
-      <button
-        onClick={e => { e.stopPropagation(); onToggleHide(project.id) }}
-        className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center rounded"
-        style={{
-          width: 22, height: 22,
-          background: isHidden ? '#2a2a2a' : project.color + '22',
-          color: isHidden ? '#555' : project.color,
-          border: `1px solid ${isHidden ? '#333' : project.color + '44'}`,
-          zIndex: 2,
-        }}
-        title={isHidden ? '타임라인에 표시' : '타임라인에서 숨기기'}
-      >
-        <EyeIcon visible={!isHidden} />
-      </button>
+      {/* 우상단 버튼 그룹 */}
+      <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1" style={{ zIndex: 2 }}>
+        {/* 눈 토글 */}
+        <button
+          onClick={e => { e.stopPropagation(); onToggleHide(project.id) }}
+          className="flex items-center justify-center rounded"
+          style={{
+            width: 22, height: 22,
+            background: isHidden ? '#2a2a2a' : project.color + '22',
+            color: isHidden ? '#555' : project.color,
+            border: `1px solid ${isHidden ? '#333' : project.color + '44'}`,
+          }}
+          title={isHidden ? '타임라인에 표시' : '타임라인에서 숨기기'}
+        >
+          <EyeIcon visible={!isHidden} />
+        </button>
+        {/* 삭제 */}
+        <button
+          onClick={handleDelete}
+          className="flex items-center justify-center rounded"
+          style={{
+            width: 22, height: 22,
+            background: '#2a1a1a',
+            color: '#f87171',
+            border: '1px solid #f8717133',
+          }}
+          title="프로젝트 삭제"
+        >
+          <svg width="11" height="11" viewBox="0 0 11 11" fill="none">
+            <path d="M2 3h7M4.5 3V2h2v1M4 5v3M7 5v3M2.5 3l.5 6h5l.5-6" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/>
+          </svg>
+        </button>
+      </div>
 
       <button
         className="flex flex-col flex-1 text-left p-4 gap-3 w-full"

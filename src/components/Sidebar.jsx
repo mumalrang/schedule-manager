@@ -78,7 +78,7 @@ function AddProjectModal({ onClose }) {
 }
 
 export default function Sidebar({ width = 210 }) {
-  const { projects, currentPage, selectedProjectId, setPage, goBack, goForward, historyIndex, pageHistory, updateTask } = useStore(s => ({
+  const { projects, currentPage, selectedProjectId, setPage, goBack, goForward, historyIndex, pageHistory, updateTask, deleteProject } = useStore(s => ({
     projects:          s.projects,
     currentPage:       s.currentPage,
     selectedProjectId: s.selectedProjectId,
@@ -88,6 +88,7 @@ export default function Sidebar({ width = 210 }) {
     historyIndex:      s.historyIndex,
     pageHistory:       s.pageHistory,
     updateTask:        s.updateTask,
+    deleteProject:     s.deleteProject,
   }))
   const canBack    = historyIndex > 0
   const canForward = historyIndex < (pageHistory?.length ?? 1) - 1
@@ -205,25 +206,45 @@ export default function Sidebar({ width = 210 }) {
             프로젝트
           </p>
           {projects.map(p => {
-            const isActive  = currentPage === 'project-detail' && selectedProjectId === p.id
+            const isActive   = currentPage === 'project-detail' && selectedProjectId === p.id
             const isDragOver = dragOverProjectId === p.id
+
+            const handleDelete = (e) => {
+              e.stopPropagation()
+              if (window.confirm(`"${p.name}" 프로젝트를 삭제할까요?\n관련 할 일도 모두 삭제됩니다.`)) {
+                deleteProject(p.id)
+              }
+            }
+
             return (
-              <button
-                key={p.id}
-                onClick={() => setPage('project-detail', p.id)}
-                onDragOver={e => handleProjectDragOver(e, p.id)}
-                onDragLeave={handleProjectDragLeave}
-                onDrop={e => handleProjectDrop(e, p.id)}
-                className="flex items-center gap-2.5 px-3 py-2 rounded text-xs w-full text-left transition-all"
-                style={{
-                  background: isDragOver ? p.color + '22' : isActive ? '#1e1e1e' : 'transparent',
-                  color:      isDragOver ? p.color         : isActive ? '#efefef' : '#888',
-                  border:     `1px solid ${isDragOver ? p.color + '55' : 'transparent'}`,
-                }}
-              >
-                <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: p.color }} />
-                <span className="truncate">{p.name}</span>
-              </button>
+              <div key={p.id} className="group relative">
+                <button
+                  onClick={() => setPage('project-detail', p.id)}
+                  onDragOver={e => handleProjectDragOver(e, p.id)}
+                  onDragLeave={handleProjectDragLeave}
+                  onDrop={e => handleProjectDrop(e, p.id)}
+                  className="flex items-center gap-2.5 px-3 py-2 rounded text-xs w-full text-left transition-all"
+                  style={{
+                    background: isDragOver ? p.color + '22' : isActive ? '#1e1e1e' : 'transparent',
+                    color:      isDragOver ? p.color         : isActive ? '#efefef' : '#888',
+                    border:     `1px solid ${isDragOver ? p.color + '55' : 'transparent'}`,
+                    paddingRight: 28,
+                  }}
+                >
+                  <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: p.color }} />
+                  <span className="truncate">{p.name}</span>
+                </button>
+                <button
+                  onClick={handleDelete}
+                  className="absolute right-1 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center rounded"
+                  style={{ width: 18, height: 18, color: '#555', background: 'transparent' }}
+                  title="삭제"
+                >
+                  <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
+                    <path d="M2 2.5h6M3.5 2.5V2h3v.5M3 4v3.5M5 4v3.5M7 4v3.5M2.5 2.5l.4 5.5h4.2l.4-5.5" stroke="currentColor" strokeWidth="1.1" strokeLinecap="round" strokeLinejoin="round"/>
+                  </svg>
+                </button>
+              </div>
             )
           })}
         </div>
