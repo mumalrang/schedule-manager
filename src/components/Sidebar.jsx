@@ -87,8 +87,9 @@ export default function Sidebar({ width = 210 }) {
   const [showAddProject, setShowAddProject] = useState(false)
 
   const navItems = [
-    { id: 'dashboard', label: '대시보드', icon: GridIcon },
-    { id: 'projects',  label: '프로젝트', icon: FolderIcon },
+    { id: 'dashboard', label: '대시보드',   icon: GridIcon    },
+    { id: 'projects',  label: '프로젝트',   icon: FolderIcon  },
+    { id: 'routine',   label: '데일리 루틴', icon: RoutineIcon },
   ]
 
   return (
@@ -187,6 +188,15 @@ function FolderIcon({ size = 16, color = 'currentColor' }) {
   return (
     <svg width={size} height={size} viewBox="0 0 16 16" fill="none">
       <path d="M1 4.5C1 3.67 1.67 3 2.5 3H6l1.5 2H13.5C14.33 5 15 5.67 15 6.5v6c0 .83-.67 1.5-1.5 1.5h-11C1.67 14 1 13.33 1 12.5v-8z" fill={color} opacity="0.7"/>
+    </svg>
+  )
+}
+
+function RoutineIcon({ size = 16, color = 'currentColor' }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 16 16" fill="none">
+      <circle cx="8" cy="8" r="6.5" stroke={color} strokeWidth="1.2" opacity="0.7"/>
+      <path d="M8 4.5v3.75l2.5 1.5" stroke={color} strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" opacity="0.9"/>
     </svg>
   )
 }

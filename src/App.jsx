@@ -3,6 +3,7 @@ import Sidebar from './components/Sidebar'
 import Dashboard from './components/dashboard/Dashboard'
 import ProjectList from './components/projects/ProjectList'
 import ProjectDetail from './components/projects/ProjectDetail'
+import RoutinePage from './components/routine/RoutinePage'
 import ResizeHandle from './components/ResizeHandle'
 import DumpPanel from './components/dashboard/DumpPanel'
 import useStore from './store/useStore'
@@ -36,6 +37,7 @@ export default function App() {
         {currentPage === 'dashboard'      && <Dashboard />}
         {currentPage === 'projects'       && <ProjectList />}
         {currentPage === 'project-detail' && <ProjectDetail />}
+        {currentPage === 'routine'        && <RoutinePage />}
       </main>
       <ResizeHandle onResize={onDumpResize} />
       <DumpPanel width={dumpWidth} />

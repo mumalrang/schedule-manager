@@ -37,7 +37,7 @@ export default function TimeGrid({ date, projectFilter = null, onRequestAddTask,
   // ── 개별 스토어 구독 (불필요한 재렌더 방지) ─────────────
   const tasks       = useStore(s => s.tasks)
   const projects    = useStore(s => s.projects)
-  const fixedBlocks = useStore(s => s.fixedBlocks)
+  const routines    = useStore(s => s.routines)
   const activeHours = useStore(s => s.activeHours)
   const updateTask  = useStore(s => s.updateTask)
 
@@ -288,7 +288,11 @@ export default function TimeGrid({ date, projectFilter = null, onRequestAddTask,
   const dateObj  = new Date(date + 'T00:00:00')
   const jsDay    = dateObj.getDay()
   const dayIndex = jsDay === 0 ? 6 : jsDay - 1
-  const fixedForDay = fixedBlocks.filter(b => b.days.includes(dayIndex))
+  const routinesForDay = routines.filter(r =>
+    r.days.includes(jsDay) &&
+    (!r.startDate || date >= r.startDate) &&
+    (!r.endDate   || date <= r.endDate)
+  )
 
   // ── render ───────────────────────────────────────────────
   return (
@@ -334,18 +338,26 @@ export default function TimeGrid({ date, projectFilter = null, onRequestAddTask,
         />
       ))}
 
-      {/* Fixed blocks */}
-      {fixedForDay.map(fb => {
-        const s = Math.max(timeToMinutes(fb.startTime), effectiveStart)
-        const e = Math.min(timeToMinutes(fb.endTime),   effectiveEnd)
+      {/* Routine blocks */}
+      {routinesForDay.map(r => {
+        const s = Math.max(timeToMinutes(r.startTime), effectiveStart)
+        const e = Math.min(timeToMinutes(r.endTime),   effectiveEnd)
         if (e <= s) return null
         const top = minToY(s)
         return (
-          <div key={fb.id} className="absolute rounded pointer-events-none"
-            style={{ left: BLOCK_L, right: 4, top, height: Math.max(minToY(e) - top, 20),
-              background: fb.color, opacity: 0.35, zIndex: 1 }}
+          <div key={r.id} className="absolute rounded pointer-events-none"
+            style={{
+              left: BLOCK_L, right: 4,
+              top, height: Math.max(minToY(e) - top, 20),
+              background: r.color + '18',
+              borderLeft: `2px solid ${r.color}88`,
+              zIndex: 1,
+            }}
           >
-            <span className="absolute top-1 left-2" style={{ color: '#ccc', fontSize: 10 }}>{fb.name}</span>
+            <span className="absolute top-1 left-2 text-xs truncate"
+              style={{ color: r.color + 'aa', fontSize: 10 }}>
+              ↻ {r.name}
+            </span>
           </div>
         )
       })}

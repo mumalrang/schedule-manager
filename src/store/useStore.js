@@ -53,11 +53,6 @@ const DEFAULT_TASKS = [
   { id: uid(), text: '알고리즘 문제 풀기',         projId: 'p3', milestoneId: 'ms7', date: offsetDate(1),  startTime: '22:00', endTime: '23:00', done: false },
 ]
 
-const DEFAULT_FIXED_BLOCKS = [
-  { id: 'fb1', name: '점심 시간', days: [0,1,2,3,4],     startTime: '12:00', endTime: '13:00', color: '#555' },
-  { id: 'fb2', name: '저녁 식사', days: [0,1,2,3,4,5,6], startTime: '19:00', endTime: '20:00', color: '#444' },
-]
-
 // ── store factory ──────────────────────────────────────────
 function buildInitialState(saved) {
   if (saved) {
@@ -65,7 +60,7 @@ function buildInitialState(saved) {
       projects:    saved.projects    ?? DEFAULT_PROJECTS,
       milestones:  saved.milestones  ?? DEFAULT_MILESTONES,
       tasks:       saved.tasks       ?? DEFAULT_TASKS,
-      fixedBlocks: saved.fixedBlocks ?? DEFAULT_FIXED_BLOCKS,
+      routines:    saved.routines    ?? [],
       selectedDate: saved.selectedDate ?? today,
       activeHours:  saved.activeHours  ?? { start: '06:00', end: '23:00' },
       viewPreset:      saved.viewPreset      ?? 1,
@@ -76,7 +71,7 @@ function buildInitialState(saved) {
     projects:    DEFAULT_PROJECTS,
     milestones:  DEFAULT_MILESTONES,
     tasks:       DEFAULT_TASKS,
-    fixedBlocks: DEFAULT_FIXED_BLOCKS,
+    routines:    [],
     selectedDate: today,
     activeHours: { start: '06:00', end: '23:00' },
     viewPreset:     1,
@@ -153,16 +148,6 @@ const useStore = create((set, get) => {
     deleteTask: (id) =>
       set(s => persist({ tasks: s.tasks.filter(t => t.id !== id) })),
 
-    // ── fixed blocks ───────────────────────────────────────
-    addFixedBlock: (block) =>
-      set(s => persist({ fixedBlocks: [...s.fixedBlocks, { ...block, id: uid() }] })),
-
-    deleteFixedBlock: (id) =>
-      set(s => persist({ fixedBlocks: s.fixedBlocks.filter(b => b.id !== id) })),
-
-    updateFixedBlock: (id, updates) =>
-      set(s => persist({ fixedBlocks: s.fixedBlocks.map(b => b.id === id ? { ...b, ...updates } : b) })),
-
     // ── active hours ───────────────────────────────────────
     setActiveHours: (activeHours) =>
       set(persist({ activeHours })),
@@ -174,6 +159,16 @@ const useStore = create((set, get) => {
     // single set call — 두 번 렌더 방지
     setViewRangeAndDate: (viewPreset, viewRangeStart, selectedDate) =>
       set(persist({ viewPreset, viewRangeStart, selectedDate })),
+
+    // ── routines ───────────────────────────────────────────
+    addRoutine: (routine) =>
+      set(s => persist({ routines: [...s.routines, { ...routine, id: uid() }] })),
+
+    updateRoutine: (id, updates) =>
+      set(s => persist({ routines: s.routines.map(r => r.id === id ? { ...r, ...updates } : r) })),
+
+    deleteRoutine: (id) =>
+      set(s => persist({ routines: s.routines.filter(r => r.id !== id) })),
   }
 })
 
